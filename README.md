@@ -2,7 +2,7 @@
 
 USE is an insanely stupid storage engine. The sole purpose of the existence of this storage engine is so that I can play with multiple things in a single project. Plan for iteration 1 is to have:
 1. A stupid simple storage engine, which stores key value pairs in a single file. The data is stored in TLV format. Data file is nothing but an append only log. Writes are fast, reads are excrutiatingly slow. No plans to improve any of this in this iteration.
-2. A simple TCP based transporation layer for the storage engine to expose its API. No TLS, no complex query language, nothing. Just a simple parser for the commands received from the TCP layer.
+2. A simple HTTP based transporation layer for the storage engine to expose its API. No TLS, no complex query language, nothing. Just a simple HTTP query based API.
 3. Single master replication. Nothing fancy here either. Follower nodes will use a join token to join the cluster. Once the token is verified, they can choose either asynchronous or synchronous mode of replication.
 
 That's it for the first iteration. For the future iteration (if that ever happens):
