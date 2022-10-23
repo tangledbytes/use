@@ -1,48 +1,39 @@
 package main
 
 import (
-	"os"
-	"path/filepath"
+	"fmt"
 
+	"github.com/utkarsh-pro/use/pkg/config"
+	"github.com/utkarsh-pro/use/pkg/shutdown"
 	"github.com/utkarsh-pro/use/pkg/storage"
+	"github.com/utkarsh-pro/use/pkg/transport"
 )
 
 func main() {
-	dbpath := filepath.Join(".", "db")
-	if err := os.MkdirAll(dbpath, 0777); err != nil {
-		panic(err)
-	}
-
-	s, err := storage.New(storage.StupidStorageType, dbpath)
+	storage, err := storage.New(storage.StorageType(config.Storage), config.StoragePath)
 	if err != nil {
 		panic(err)
 	}
 
-	if err := s.Init(); err != nil {
+	if err := storage.Init(); err != nil {
 		panic(err)
 	}
 
-	if err := s.Set("foo", []byte("bar")); err != nil {
-		panic(err)
-	}
-
-	if err := s.Set("foo", []byte("bazz")); err != nil {
-		panic(err)
-	}
-
-	val, err := s.Get("foo")
+	transport, err := transport.New(transport.TransportType(config.Transport), storage)
 	if err != nil {
 		panic(err)
 	}
-	println(string(val))
 
-	// if err := s.Delete("foo"); err != nil {
-	// 	panic(err)
-	// }
+	go func() {
+		if err := transport.Setup(config.Address); err != nil {
+			panic(err)
+		}
+	}()
 
-	ok, err := s.Exists("foo")
-	if err != nil {
-		panic(err)
-	}
-	println(ok)
+	fmt.Println("use is running: ", config.String())
+
+	shutdown.RegisterFunc(storage.Close)
+	shutdown.RegisterFunc(transport.Shutdown)
+
+	shutdown.OnSignal()
 }
