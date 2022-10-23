@@ -25,12 +25,6 @@ type Packet struct {
 	vtlv *tlvrw.TLV
 }
 
-type PacketLite struct {
-	Op     byte
-	Key    []byte
-	ValPos int64
-}
-
 type reader struct {
 	// r is the underlying TLV reader
 	r *tlvrw.Reader
