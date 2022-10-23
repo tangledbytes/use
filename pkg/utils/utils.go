@@ -1,6 +1,9 @@
 package utils
 
-import "strconv"
+import (
+	"os"
+	"strconv"
+)
 
 // ToPointer takes any value and returns a pointer to that value.
 //
@@ -34,4 +37,26 @@ func BoolToString(b bool) string {
 // IntToString returns the string representation of the given integer.
 func IntToString(i int) string {
 	return strconv.Itoa(i)
+}
+
+// StringToInt returns the integer representation of the given string.
+//
+// If the string cannot be converted to an integer, this function panics.
+func StringToInt(s string) int {
+	i, err := strconv.Atoi(s)
+	if err != nil {
+		panic(err)
+	}
+
+	return i
+}
+
+// GetEnvOrDefault returns the value of the given environment variable
+// if it exists, otherwise returns the given default value.
+func GetEnvOrDefault(key, defaultValue string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
+	}
+
+	return defaultValue
 }
