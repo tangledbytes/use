@@ -1,7 +1,6 @@
 package stupid
 
 import (
-	"fmt"
 	"io"
 
 	"github.com/utkarsh-pro/use/pkg/storage/tlvrw"
@@ -18,14 +17,12 @@ const (
 	ValTypeTLV = byte(3)
 )
 
-var (
-	ErrUnexpectedEOF = fmt.Errorf("unexpected EOF")
-)
-
 type Packet struct {
 	Op  byte
 	Key []byte
 	Val []byte
+
+	vtlv *tlvrw.TLV
 }
 
 type PacketLite struct {
@@ -34,153 +31,95 @@ type PacketLite struct {
 	ValPos int64
 }
 
-// ReadPacket reads a packet from the reader.
-func ReadPacket(r io.ReadSeeker) (*Packet, error) {
-	// Read an operation type TLV
-	op, err := readOpType(r)
-	if err != nil {
-		if err == tlvrw.EOF {
-			if op == 0 {
-				return nil, err
-			}
-
-			return nil, ErrUnexpectedEOF
-		}
-
-		return nil, err
-	}
-
-	// Read a key type TLV
-	key, err := readKey(r)
-	if err != nil {
-		if err == tlvrw.EOF {
-			return nil, ErrUnexpectedEOF
-		}
-
-		return nil, err
-	}
-
-	// Read a value type TLV
-	val, err := readValue(r)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Packet{
-		Op:  op,
-		Key: key,
-		Val: val,
-	}, nil
+type reader struct {
+	// r is the underlying TLV reader
+	r *tlvrw.Reader
 }
 
-// ReadPacketLite reads the packet lite from the reader.
-func ReadPacketLite(r io.ReadSeeker) (*PacketLite, error) {
-	// Read an operation type TLV
-	op, err := readOpType(r)
-	if err != nil {
-		if err == tlvrw.EOF {
-			if op == 0 {
-				return nil, err
-			}
-
-			return nil, ErrUnexpectedEOF
-		}
-
-		return nil, err
-	}
-
-	// Read a key type TLV
-	key, err := readKey(r)
-	if err != nil {
-		if err == tlvrw.EOF {
-			return nil, ErrUnexpectedEOF
-		}
-
-		return nil, err
-	}
-
-	// Save the position of the value type TLV
-	valSeekPos, err := r.Seek(0, io.SeekCurrent)
-	if err != nil {
-		return nil, err
-	}
-	if err := tlvrw.Skip(r); err != nil {
-		return nil, err
-	}
-
-	return &PacketLite{
-		Op:     op,
-		Key:    key,
-		ValPos: valSeekPos,
-	}, nil
+type writer struct {
+	// w is the underlying TLV writer
+	w *tlvrw.Writer
 }
 
-func ResetReader(r io.ReadSeeker) error {
-	return tlvrw.ResetReader(r)
+func newreader(r io.ReaderAt) *reader {
+	return &reader{
+		r: tlvrw.NewReader(r),
+	}
 }
 
-// WritePacket writes a packet to the writer.
-func WritePacket(w io.Writer, p *Packet) error {
-	// Write an operation type TLV
-	if err := tlvrw.Write(w, tlvrw.NewTLV(OpTypeTLV, []byte{p.Op})); err != nil {
-		return err
+func newwriter(w io.Writer) *writer {
+	return &writer{
+		w: tlvrw.NewWriter(w),
 	}
+}
 
-	// Write a key type TLV
-	if err := tlvrw.Write(w, tlvrw.NewTLV(KeyTypeTLV, p.Key)); err != nil {
-		return err
-	}
+// lread is a lazy reader which reads the packet
+func (r *reader) lread(p *Packet) error {
+	// read the operation type TLV
+	optlv := tlvrw.NewTLV(OpTypeTLV, nil)
+	if err := r.r.Read(optlv); err != nil {
+		// EOF indicates that there are no more packets to read
+		if err == io.EOF {
+			return io.EOF
+		}
 
-	// Write a value type TLV
-	if err := tlvrw.Write(w, tlvrw.NewTLV(ValTypeTLV, p.Val)); err != nil {
 		return err
 	}
+	p.Op = optlv.Val[0]
+
+	// read the key type TLV
+	keytlv := tlvrw.NewTLV(KeyTypeTLV, nil)
+	if err := r.r.Read(keytlv); err != nil {
+		if err == io.EOF {
+			// packets are set of 3 TLVs and we don't expect
+			// EOF on the second TLV read
+			return io.ErrUnexpectedEOF
+		}
+
+		return err
+	}
+	p.Key = keytlv.Val
+
+	// read the value type TLV lazily
+	valtlv := tlvrw.NewTLV(ValTypeTLV, nil)
+	if err := r.r.ReadLazy(valtlv); err != nil {
+		return err
+	}
+	p.vtlv = valtlv
 
 	return nil
 }
 
-func readOpType(r io.ReadSeeker) (byte, error) {
-	optlv, err := tlvrw.Read(r)
-	if err != nil && err != tlvrw.EOF {
-		return 0, err
+// fill fills the value type TLV with the value
+func (r *reader) fill(p *Packet) error {
+	if p.vtlv == nil {
+		return nil
 	}
 
-	if optlv == nil && err == tlvrw.EOF {
-		return 0, err
+	if err := r.r.Fill(p.vtlv); err != nil {
+		return err
 	}
 
-	if optlv.Typ != OpTypeTLV {
-		return 0, fmt.Errorf("expected operation type TLV, got %d", optlv.Typ)
-	}
-	return optlv.Val[0], err
+	p.Val = p.vtlv.Val
+	p.vtlv = nil
+	return nil
 }
 
-func readKey(r io.ReadSeeker) ([]byte, error) {
-	keytlv, err := tlvrw.Read(r)
-	if err != nil && err != tlvrw.EOF {
-		return nil, err
-	}
-	if keytlv.Typ != KeyTypeTLV {
-		return nil, fmt.Errorf("expected key type TLV, got %d", keytlv.Typ)
-	}
-	return keytlv.Val, nil
-}
-
-func readValue(r io.ReadSeeker) ([]byte, error) {
-	valtlv, err := tlvrw.Read(r)
-	if err != nil && err != tlvrw.EOF {
-		return nil, err
-	}
-	if valtlv.Typ != ValTypeTLV {
-		return nil, fmt.Errorf("expected value type TLV, got %d", valtlv.Typ)
-	}
-	return valtlv.Val, nil
-}
-
-func readValueAt(r io.ReadSeeker, pos int64) ([]byte, error) {
-	if _, err := r.Seek(pos, io.SeekStart); err != nil {
-		return nil, err
+func (w *writer) write(p *Packet) error {
+	// Write an operation type TLV
+	if err := w.w.Write(tlvrw.NewTLV(OpTypeTLV, []byte{p.Op})); err != nil {
+		return err
 	}
 
-	return readValue(r)
+	// Write a key type TLV
+	if err := w.w.Write(tlvrw.NewTLV(KeyTypeTLV, p.Key)); err != nil {
+		return err
+	}
+
+	// Write a value type TLV
+	if err := w.w.Write(tlvrw.NewTLV(ValTypeTLV, p.Val)); err != nil {
+		return err
+	}
+
+	return nil
 }

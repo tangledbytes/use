@@ -1,13 +1,11 @@
 package stupid
 
 import (
-	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
-
-	"github.com/utkarsh-pro/use/pkg/storage/tlvrw"
 )
 
 var (
@@ -24,7 +22,6 @@ var (
 type Storage struct {
 	file string
 
-	rmu *sync.Mutex
 	rfd *os.File
 
 	wmu *sync.Mutex
@@ -35,7 +32,6 @@ type Storage struct {
 func New(dir string) *Storage {
 	return &Storage{
 		file: filepath.Join(dir, "stupid.db"),
-		rmu:  &sync.Mutex{},
 		wmu:  &sync.Mutex{},
 	}
 }
@@ -64,22 +60,13 @@ func (s *Storage) Get(key string) ([]byte, error) {
 		return nil, ErrStorageNotInitialized
 	}
 
-	s.rmu.Lock()
-	defer func() {
-		if err := ResetReader(s.rfd); err != nil {
-			// fail early
-			panic(fmt.Errorf("error resetting reader: %w", err))
-		}
-
-		s.rmu.Unlock()
-	}()
-
-	var candidate *PacketLite = nil
+	var candidate *Packet = nil
+	pr := newreader(s.rfd)
 
 	for {
-		packet, err := ReadPacketLite(s.rfd)
-		if err != nil {
-			if errors.Is(err, tlvrw.EOF) {
+		packet := &Packet{}
+		if err := pr.lread(packet); err != nil {
+			if err == io.EOF {
 				break
 			}
 
@@ -101,12 +88,11 @@ func (s *Storage) Get(key string) ([]byte, error) {
 		return nil, ErrKeyNotFound
 	}
 
-	val, err := readValueAt(s.rfd, candidate.ValPos)
-	if err != nil {
-		return nil, fmt.Errorf("error reading value: %w", err)
+	if err := pr.fill(candidate); err != nil {
+		return nil, fmt.Errorf("error filling packet: %w", err)
 	}
 
-	return val, nil
+	return candidate.Val, nil
 }
 
 // Set sets the value for the given key.
@@ -118,8 +104,8 @@ func (s *Storage) Set(key string, value []byte) error {
 	s.wmu.Lock()
 	defer s.wmu.Unlock()
 
-	if err := WritePacket(
-		s.wfd,
+	pw := newwriter(s.wfd)
+	if err := pw.write(
 		&Packet{
 			Op:  SetOp,
 			Key: []byte(key),
@@ -145,8 +131,8 @@ func (s *Storage) Delete(key string) error {
 	s.wmu.Lock()
 	defer s.wmu.Unlock()
 
-	if err := WritePacket(
-		s.wfd,
+	pw := newwriter(s.wfd)
+	if err := pw.write(
 		&Packet{
 			Op:  DelOp,
 			Key: []byte(key),
@@ -165,22 +151,13 @@ func (s *Storage) Exists(key string) (bool, error) {
 		return false, ErrStorageNotInitialized
 	}
 
-	s.rmu.Lock()
-	defer func() {
-		if err := ResetReader(s.rfd); err != nil {
-			// fail early
-			panic(fmt.Errorf("error resetting reader: %w", err))
-		}
-
-		s.rmu.Unlock()
-	}()
-
-	var candidate *PacketLite = nil
+	var candidate *Packet = nil
+	pr := newreader(s.rfd)
 
 	for {
-		packet, err := ReadPacketLite(s.rfd)
-		if err != nil {
-			if errors.Is(err, tlvrw.EOF) {
+		packet := &Packet{}
+		if err := pr.lread(packet); err != nil {
+			if err == io.EOF {
 				break
 			}
 
@@ -207,16 +184,10 @@ func (s *Storage) Close() error {
 		return ErrStorageNotInitialized
 	}
 
-	s.rmu.Lock()
-	defer s.rmu.Unlock()
-
 	if err := s.rfd.Close(); err != nil {
 		return fmt.Errorf("error closing read fd: %w", err)
 	}
 	s.rfd = nil
-
-	s.wmu.Lock()
-	defer s.wmu.Unlock()
 
 	if err := s.wfd.Close(); err != nil {
 		return fmt.Errorf("error closing write fd: %w", err)
@@ -231,22 +202,13 @@ func (s *Storage) Len() (int, error) {
 		return 0, ErrStorageNotInitialized
 	}
 
-	s.rmu.Lock()
-	defer func() {
-		if err := ResetReader(s.rfd); err != nil {
-			// fail early
-			panic(fmt.Errorf("error resetting reader: %w", err))
-		}
-
-		s.rmu.Unlock()
-	}()
-
 	set := make(map[string]struct{})
+	pr := newreader(s.rfd)
 
 	for {
-		packet, err := ReadPacketLite(s.rfd)
-		if err != nil {
-			if errors.Is(err, tlvrw.EOF) {
+		packet := &Packet{}
+		if err := pr.lread(packet); err != nil {
+			if err == io.EOF {
 				break
 			}
 

@@ -61,7 +61,9 @@ func TestWrite(t *testing.T) {
 			}
 
 			w := &bytes.Buffer{}
-			if err := Write(w, tt.args.tlv); (err != nil) != tt.wantErr {
+			tlvw := NewWriter(w)
+
+			if err := tlvw.Write(tt.args.tlv); (err != nil) != tt.wantErr {
 				t.Errorf("Write() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
@@ -74,7 +76,7 @@ func TestWrite(t *testing.T) {
 
 func TestRead(t *testing.T) {
 	type args struct {
-		r io.Reader
+		r io.ReaderAt
 	}
 	tests := []struct {
 		name    string
@@ -85,7 +87,7 @@ func TestRead(t *testing.T) {
 		{
 			name: "Valid TLV read",
 			args: args{
-				r: bytes.NewBuffer([]byte("\x00\x05\x00\x00\x00hello")),
+				r: bytes.NewReader([]byte("\x00\x05\x00\x00\x00hello")),
 			},
 			want:    NewTLV(0, []byte("hello")),
 			wantErr: false,
@@ -93,7 +95,7 @@ func TestRead(t *testing.T) {
 		{
 			name: "Valid TLV read - 2",
 			args: args{
-				r: bytes.NewBuffer([]byte("\x02\x05\x00\x00\x00hello")),
+				r: bytes.NewReader([]byte("\x02\x05\x00\x00\x00hello")),
 			},
 			want:    NewTLV(2, []byte("hello")),
 			wantErr: false,
@@ -101,7 +103,10 @@ func TestRead(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := Read(tt.args.r)
+			tlvr := NewReader(tt.args.r)
+			got := NewTLV(0, nil)
+
+			err := tlvr.Read(got)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Read() error = %v, wantErr %v", err, tt.wantErr)
 				return

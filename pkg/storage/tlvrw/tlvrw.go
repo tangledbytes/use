@@ -5,112 +5,170 @@ import (
 	"fmt"
 	"io"
 	"math"
+
+	"github.com/utkarsh-pro/use/pkg/utils"
 )
 
 var (
 	MaxLen uint32 = math.MaxUint32 // 4GB max at once
 
 	ErrInvalidLen    = fmt.Errorf("length cannot be greater than %d", MaxLen)
-	EOF              = io.EOF
-	ErrUnexpectedEOF = fmt.Errorf("unexpected EOF")
+	ErrInvalidWhence = fmt.Errorf("invalid whence")
 )
 
-// TLV represents a type,length,value structure.
-type TLV struct {
-	Typ byte
-	Len uint32
-	Val []byte
+type Reader struct {
+	// r is the reader which will be used to read from the
+	// underlying resource.
+	r io.ReaderAt
+
+	// readerPos is the current position of the reader.
+	readerPos int64
 }
 
-// NewTLV returns a pointer to a new TLV.
-func NewTLV(typ byte, val []byte) *TLV {
-	return &TLV{
-		Typ: typ,
-		Len: uint32(len(val)),
-		Val: val,
+type Writer struct {
+	// w is the writer which will be used to write to the
+	// underlying resource.
+	w io.Writer
+}
+
+func NewReader(r io.ReaderAt) *Reader {
+	return &Reader{
+		r:         r,
+		readerPos: 0,
 	}
 }
 
-// ResetReader resets the reader to the beginning of the file.
-func ResetReader(r io.ReadSeeker) error {
-	_, err := r.Seek(0, io.SeekStart)
-	return err
+func NewWriter(w io.Writer) *Writer {
+	return &Writer{
+		w: w,
+	}
 }
 
 // Read reads a TLV from the reader.
-func Read(r io.Reader) (*TLV, error) {
-	tlv := NewTLV(0, nil)
-
-	if err := binary.Read(r, binary.LittleEndian, &tlv.Typ); err != nil {
-		if err == io.EOF {
-			// return nil as nothing was really read
-			return nil, EOF
-		}
-
-		return tlv, err
+func (r *Reader) Read(tlv *TLV) error {
+	if err := r.ReadLazy(tlv); err != nil {
+		return err
 	}
 
-	if err := binary.Read(r, binary.LittleEndian, &tlv.Len); err != nil {
-		if err == io.EOF {
-			// It is not expected that the data will end here.
-			return tlv, ErrUnexpectedEOF
-		}
-
-		return tlv, err
-	}
-
-	tlv.Val = make([]byte, tlv.Len)
-	if n, err := r.Read(tlv.Val); err != nil {
-		if err == io.EOF {
-			if n == 0 {
-				// It is not expected that the data will end here.
-				return tlv, ErrUnexpectedEOF
-			}
-
-			return tlv, EOF
-		}
-
-		return tlv, err
-	}
-
-	return tlv, nil
+	return r.Fill(tlv)
 }
 
-// Skip skips the current TLV.
-func Skip(r io.ReadSeeker) error {
-	tlv := NewTLV(0, nil)
+// ReadLazy reads a TLV from the reader, but does not read the value.
+// This is useful for when you want to read the type and length, but
+// not the value.
+//
+// The value will be read when the Fill(tlv) method is called.
+func (r *Reader) ReadLazy(tlv *TLV) error {
+	// Read 1 byte for the type.
+	typBytes := make([]byte, 1)
+	if n, err := r.r.ReadAt(typBytes, r.readerPos); err != nil {
+		if err == io.EOF {
+			// If we get an EOF, we need to check if we read anything.
+			if n == 0 {
+				return io.EOF
+			}
 
-	if err := binary.Read(r, binary.LittleEndian, &tlv.Typ); err != nil {
+			// If we read something, we need to return an error.
+			return io.ErrUnexpectedEOF
+		}
+
 		return err
+	} else {
+		r.readerPos += int64(n)
+		tlv.Typ = typBytes[0]
 	}
 
-	if err := binary.Read(r, binary.LittleEndian, &tlv.Len); err != nil {
+	// Read 4 bytes for the length.
+	lenBytes := make([]byte, 4)
+	if n, err := r.r.ReadAt(lenBytes, r.readerPos); err != nil {
+		if err == io.EOF {
+			// regardless of what we read, we need to return an error
+			// as we are in middle of reading a TLV
+			return io.ErrUnexpectedEOF
+		}
+
 		return err
+	} else {
+		r.readerPos += int64(n)
+		tlv.Len = binary.LittleEndian.Uint32(lenBytes)
 	}
 
-	if _, err := r.Seek(int64(tlv.Len), io.SeekCurrent); err != nil {
-		return err
-	}
+	// Skip reading value but store the position for future reads
+	tlv.Val = nil
+	tlv.valuepos = utils.ToPointer(r.readerPos)
+
+	// Move the reader position to the end of the value
+	r.readerPos += int64(tlv.Len)
 
 	return nil
 }
 
-// Write writes a TLV to the io.Writer.
-func Write(w io.Writer, tlv *TLV) error {
+// Fill takes a partially filled TLV and fills in the value. This function
+// can be called as many times as needed (in case of failure to read earlier).
+func (r *Reader) Fill(tlv *TLV) error {
+	if tlv.Done() {
+		return nil
+	}
+
 	if tlv.Len > MaxLen {
 		return ErrInvalidLen
 	}
 
-	if err := binary.Write(w, binary.LittleEndian, tlv.Typ); err != nil {
+	if tlv.Val == nil {
+		tlv.Val = make([]byte, tlv.Len)
+	}
+
+	if n, err := r.r.ReadAt(tlv.Val, *tlv.valuepos); err != nil {
+		if err == io.EOF {
+			if n < int(tlv.Len) {
+				return io.ErrUnexpectedEOF
+			}
+
+			return io.EOF
+		}
+
 		return err
 	}
 
-	if err := binary.Write(w, binary.LittleEndian, tlv.Len); err != nil {
+	// Clear the valuepos only if we are able to read the value
+	// successfully. This is to ensure that we can read the value
+	// again if it fails once.
+	tlv.valuepos = nil
+
+	return nil
+}
+
+// Seek seeks to the given offset, supported whence are io.SeekStart and
+// io.SeekCurrent. io.SeekEnd is not supported.
+func (r *Reader) Seek(offset int64, whence int) (int64, error) {
+	switch whence {
+	case io.SeekStart:
+		r.readerPos = offset
+	case io.SeekCurrent:
+		r.readerPos += offset
+	default:
+		return 0, ErrInvalidWhence
+	}
+
+	return r.readerPos, nil
+}
+
+// Write writes a TLV to the writer.
+func (w *Writer) Write(tlv *TLV) error {
+	if tlv.Len > MaxLen {
+		return ErrInvalidLen
+	}
+
+	if err := binary.Write(w.w, binary.LittleEndian, tlv.Typ); err != nil {
+		return err
+	}
+
+	if err := binary.Write(w.w, binary.LittleEndian, tlv.Len); err != nil {
 		return err
 	}
 
 	for {
-		n, err := w.Write(tlv.Val)
+		n, err := w.w.Write(tlv.Val)
 		if err != nil {
 			return err
 		}
