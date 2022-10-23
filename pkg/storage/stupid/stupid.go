@@ -8,16 +8,13 @@ import (
 	"sync"
 
 	"github.com/utkarsh-pro/use/pkg/id"
+	"github.com/utkarsh-pro/use/pkg/storage/errors"
 )
 
 var (
 	// Storage Ops
 	SetOp = byte(1)
 	DelOp = byte(2)
-
-	// Errors
-	ErrStorageNotInitialized = fmt.Errorf("storage is not initialized")
-	ErrKeyNotFound           = fmt.Errorf("key not found")
 )
 
 // Storage is a stupid storage.
@@ -68,13 +65,18 @@ func (s *Storage) Init() error {
 // Get returns the value for the given key.
 func (s *Storage) Get(key string) ([]byte, error) {
 	if !s.isInit() {
-		return nil, ErrStorageNotInitialized
+		return nil, errors.ErrStorageNotInitialized
 	}
 
 	var candidate *Packet = nil
 	pr := newreader(s.rfd)
 
 	for {
+		// don't read beyond the last successful write position
+		if pr.pos() >= s.lastSuccessWritePos {
+			break
+		}
+
 		packet := &Packet{}
 		if err := pr.lread(packet); err != nil {
 			if err == io.EOF {
@@ -96,7 +98,7 @@ func (s *Storage) Get(key string) ([]byte, error) {
 	}
 
 	if candidate == nil {
-		return nil, ErrKeyNotFound
+		return nil, errors.ErrKeyNotFound
 	}
 
 	if err := pr.fill(candidate); err != nil {
@@ -109,7 +111,7 @@ func (s *Storage) Get(key string) ([]byte, error) {
 // Set sets the value for the given key.
 func (s *Storage) Set(key string, value []byte) error {
 	if !s.isInit() {
-		return ErrStorageNotInitialized
+		return errors.ErrStorageNotInitialized
 	}
 
 	s.wmu.Lock()
@@ -145,7 +147,7 @@ func (s *Storage) Set(key string, value []byte) error {
 // Delete deletes the value for the given key.
 func (s *Storage) Delete(key string) error {
 	if !s.isInit() {
-		return ErrStorageNotInitialized
+		return errors.ErrStorageNotInitialized
 	}
 
 	s.wmu.Lock()
@@ -181,13 +183,18 @@ func (s *Storage) Delete(key string) error {
 // Exists returns true if the given key exists.
 func (s *Storage) Exists(key string) (bool, error) {
 	if !s.isInit() {
-		return false, ErrStorageNotInitialized
+		return false, errors.ErrStorageNotInitialized
 	}
 
 	var candidate *Packet = nil
 	pr := newreader(s.rfd)
 
 	for {
+		// don't read beyond the last successful write position
+		if pr.pos() >= s.lastSuccessWritePos {
+			break
+		}
+
 		packet := &Packet{}
 		if err := pr.lread(packet); err != nil {
 			if err == io.EOF {
@@ -214,7 +221,7 @@ func (s *Storage) Exists(key string) (bool, error) {
 // Close closes the storage.
 func (s *Storage) Close() error {
 	if !s.isInit() {
-		return ErrStorageNotInitialized
+		return errors.ErrStorageNotInitialized
 	}
 
 	if err := s.rfd.Close(); err != nil {
@@ -230,15 +237,21 @@ func (s *Storage) Close() error {
 	return nil
 }
 
+// Len returns the number of keys in the storage.
 func (s *Storage) Len() (int, error) {
 	if !s.isInit() {
-		return 0, ErrStorageNotInitialized
+		return 0, errors.ErrStorageNotInitialized
 	}
 
 	set := make(map[string]struct{})
 	pr := newreader(s.rfd)
 
 	for {
+		// don't read beyond the last successful write position
+		if pr.pos() >= s.lastSuccessWritePos {
+			break
+		}
+
 		packet := &Packet{}
 		if err := pr.lread(packet); err != nil {
 			if err == io.EOF {
@@ -268,7 +281,7 @@ func (s *Storage) Len() (int, error) {
 // Note: The DB is locked for writes while the snapshot is being generated.
 func (s *Storage) PhysicalSnapshot(w io.Writer) error {
 	if !s.isInit() {
-		return ErrStorageNotInitialized
+		return errors.ErrStorageNotInitialized
 	}
 
 	// Get the last successful write position
@@ -285,6 +298,33 @@ func (s *Storage) PhysicalSnapshot(w io.Writer) error {
 	}
 
 	return nil
+}
+
+// GetByID returns a packet corresponding to the given ID.
+//
+// This is a low level API and should not be used by the user.
+func (s *Storage) GetByID(id uint64) (*Packet, error) {
+	if !s.isInit() {
+		return nil, errors.ErrStorageNotInitialized
+	}
+
+	pr := newreader(s.rfd)
+	for {
+		packet := &Packet{}
+		if err := pr.lread(packet); err != nil {
+			if err == io.EOF {
+				break
+			}
+
+			return nil, fmt.Errorf("error reading packet: %w", err)
+		}
+
+		if packet.ID == id {
+			return packet, nil
+		}
+	}
+
+	return nil, errors.ErrKeyNotFound
 }
 
 // isInit returns true if the storage is initialized.

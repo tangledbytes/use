@@ -116,6 +116,12 @@ func (r *reader) fill(p *Packet) error {
 	return nil
 }
 
+// pos returns the current position of the reader
+func (r *reader) pos() int64 {
+	pos, _ := r.r.Seek(0, io.SeekCurrent)
+	return pos
+}
+
 func (w *writer) write(p *Packet) error {
 	// write the ID type TLV
 	idtlv := tlvrw.NewTLV(IDTypeTLV, encodeid(p.ID))

@@ -4,6 +4,8 @@ import (
 	"math/rand"
 	"testing"
 	"time"
+
+	"github.com/utkarsh-pro/use/pkg/storage/errors"
 )
 
 func generateRandomBytes(n int) []byte {
@@ -26,42 +28,42 @@ func TestAll(t *testing.T) {
 
 		t.Run("Get", func(t *testing.T) {
 			_, err := s.Get("foo")
-			if err != ErrStorageNotInitialized {
+			if err != errors.ErrStorageNotInitialized {
 				t.Error("expected ErrStorageNotInitialized")
 			}
 		})
 
 		t.Run("Set", func(t *testing.T) {
 			err := s.Set("foo", nil)
-			if err != ErrStorageNotInitialized {
+			if err != errors.ErrStorageNotInitialized {
 				t.Error("expected ErrStorageNotInitialized")
 			}
 		})
 
 		t.Run("Delete", func(t *testing.T) {
 			err := s.Delete("foo")
-			if err != ErrStorageNotInitialized {
+			if err != errors.ErrStorageNotInitialized {
 				t.Error("expected ErrStorageNotInitialized")
 			}
 		})
 
 		t.Run("Exists", func(t *testing.T) {
 			_, err := s.Exists("foo")
-			if err != ErrStorageNotInitialized {
+			if err != errors.ErrStorageNotInitialized {
 				t.Error("expected ErrStorageNotInitialized")
 			}
 		})
 
 		t.Run("Len", func(t *testing.T) {
 			_, err := s.Len()
-			if err != ErrStorageNotInitialized {
+			if err != errors.ErrStorageNotInitialized {
 				t.Error("expected ErrStorageNotInitialized")
 			}
 		})
 
 		t.Run("Close", func(t *testing.T) {
 			err := s.Close()
-			if err != ErrStorageNotInitialized {
+			if err != errors.ErrStorageNotInitialized {
 				t.Error("expected ErrStorageNotInitialized")
 			}
 		})
@@ -112,7 +114,7 @@ func TestAll(t *testing.T) {
 
 		t.Run("Invalid Get", func(t *testing.T) {
 			_, err := s.Get("foo3")
-			if err != ErrKeyNotFound {
+			if err != errors.ErrKeyNotFound {
 				t.Error("expected ErrKeyNotFound")
 			}
 		})
@@ -127,7 +129,7 @@ func TestAll(t *testing.T) {
 				}
 
 				_, err := s.Get(k)
-				if err != ErrKeyNotFound {
+				if err != errors.ErrKeyNotFound {
 					t.Error("expected ErrKeyNotFound")
 				}
 
@@ -191,21 +193,21 @@ func TestAll(t *testing.T) {
 
 		t.Run("Get", func(t *testing.T) {
 			_, err := s.Get("foo")
-			if err != ErrStorageNotInitialized {
+			if err != errors.ErrStorageNotInitialized {
 				t.Error("expected ErrStorageNotInitialized")
 			}
 		})
 
 		t.Run("Set", func(t *testing.T) {
 			err := s.Set("foo", nil)
-			if err != ErrStorageNotInitialized {
+			if err != errors.ErrStorageNotInitialized {
 				t.Error("expected ErrStorageNotInitialized")
 			}
 		})
 
 		t.Run("Delete", func(t *testing.T) {
 			err := s.Delete("foo")
-			if err != ErrStorageNotInitialized {
+			if err != errors.ErrStorageNotInitialized {
 				t.Error("expected ErrStorageNotInitialized")
 			}
 
@@ -213,14 +215,14 @@ func TestAll(t *testing.T) {
 
 		t.Run("Exists", func(t *testing.T) {
 			_, err := s.Exists("foo")
-			if err != ErrStorageNotInitialized {
+			if err != errors.ErrStorageNotInitialized {
 				t.Error("expected ErrStorageNotInitialized")
 			}
 		})
 
 		t.Run("Len", func(t *testing.T) {
 			_, err := s.Len()
-			if err != ErrStorageNotInitialized {
+			if err != errors.ErrStorageNotInitialized {
 				t.Error("expected ErrStorageNotInitialized")
 			}
 		})
