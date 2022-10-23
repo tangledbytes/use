@@ -3,7 +3,7 @@ package stupid
 import (
 	"io"
 
-	"github.com/utkarsh-pro/use/pkg/storage/tlvrw"
+	"github.com/utkarsh-pro/use/pkg/tlvrw"
 )
 
 const (
