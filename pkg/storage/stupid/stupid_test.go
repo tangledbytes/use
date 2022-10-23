@@ -1,8 +1,18 @@
 package stupid
 
 import (
+	"math/rand"
 	"testing"
+	"time"
 )
+
+func generateRandomBytes(n int) []byte {
+	rand.Seed(time.Now().UnixNano())
+	b := make([]byte, n)
+	rand.Read(b)
+
+	return b
+}
 
 func TestAll(t *testing.T) {
 	dir := t.TempDir()
@@ -69,40 +79,34 @@ func TestAll(t *testing.T) {
 		})
 	})
 
+	valsforSet := make(map[string][]byte)
+	valsforSet["foo"] = []byte("bar")
+	valsforSet["bar"] = []byte("baz")
+	valsforSet["baz"] = []byte("foo")
+	valsforSet["mr.big.empty"] = make([]byte, 1024*1024*10)
+	valsforSet["mr.big.random"] = generateRandomBytes(1024 * 1024 * 10)
+
 	t.Run("Set", func(t *testing.T) {
 		t.Run("Valid Set", func(t *testing.T) {
-			if err := s.Set("foo", []byte("bar")); err != nil {
-				t.Error(err)
-			}
-
-			if err := s.Set("foo", []byte("bazz")); err != nil {
-				t.Error(err)
-			}
-
-			if err := s.Set("foo2", []byte("bazz2")); err != nil {
-				t.Error(err)
+			for k, v := range valsforSet {
+				if err := s.Set(k, v); err != nil {
+					t.Error(err)
+				}
 			}
 		})
 	})
 
 	t.Run("Get", func(t *testing.T) {
 		t.Run("Valid Get", func(t *testing.T) {
-			val, err := s.Get("foo")
-			if err != nil {
-				t.Error(err)
-			}
+			for k, v := range valsforSet {
+				val, err := s.Get(k)
+				if err != nil {
+					t.Error(err)
+				}
 
-			if string(val) != "bazz" {
-				t.Error("expected bazz")
-			}
-
-			val, err = s.Get("foo2")
-			if err != nil {
-				t.Error(err)
-			}
-
-			if string(val) != "bazz2" {
-				t.Error("expected bazz2")
+				if string(val) != string(v) {
+					t.Error("value mismatch")
+				}
 			}
 		})
 
@@ -116,29 +120,40 @@ func TestAll(t *testing.T) {
 
 	t.Run("Delete", func(t *testing.T) {
 		t.Run("Valid Delete", func(t *testing.T) {
-			if err := s.Delete("foo"); err != nil {
-				t.Error(err)
-			}
+			// Delete the first key that we encounter
+			for k := range valsforSet {
+				if err := s.Delete(k); err != nil {
+					t.Error(err)
+				}
 
-			if _, err := s.Get("foo"); err != ErrKeyNotFound {
-				t.Error("expected ErrKeyNotFound")
+				_, err := s.Get(k)
+				if err != ErrKeyNotFound {
+					t.Error("expected ErrKeyNotFound")
+				}
+
+				delete(valsforSet, k)
+				return
 			}
 		})
 	})
 
 	t.Run("Exists", func(t *testing.T) {
 		t.Run("Valid Exists", func(t *testing.T) {
-			if ok, err := s.Exists("foo2"); err != nil {
-				t.Error(err)
-			} else if !ok {
-				t.Error("expected true")
+			for k := range valsforSet {
+				exists, err := s.Exists(k)
+				if err != nil {
+					t.Error(err)
+				}
+
+				if !exists {
+					t.Error("key does not exist")
+				}
 			}
 
-			if ok, err := s.Exists("foo3"); err != nil {
+			if ok, err := s.Exists(string(generateRandomBytes(5))); err != nil {
 				t.Error(err)
 			} else if ok {
 				t.Error("expected false")
-
 			}
 		})
 	})
@@ -147,8 +162,8 @@ func TestAll(t *testing.T) {
 		t.Run("Valid Len", func(t *testing.T) {
 			if n, err := s.Len(); err != nil {
 				t.Error(err)
-			} else if n != 1 {
-				t.Error("expected 1")
+			} else if n != len(valsforSet) {
+				t.Error("expected", len(valsforSet), "got", n)
 			}
 
 			if err := s.Set("foo3", []byte("bazz")); err != nil {
@@ -157,8 +172,8 @@ func TestAll(t *testing.T) {
 
 			if n, err := s.Len(); err != nil {
 				t.Error(err)
-			} else if n != 2 {
-				t.Error("expected 2")
+			} else if n != len(valsforSet)+1 {
+				t.Error("expected", len(valsforSet)+1, "got", n)
 			}
 		})
 	})
