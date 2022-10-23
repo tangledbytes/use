@@ -12,3 +12,8 @@ That's it for the first iteration. For the future iteration (if that ever happen
 4. Sharding? Don't know yet.
 
 Whta does USE stand for? It's a recursive name U -> USE, S -> Storage, E -> Engine
+
+## Updates
+### 23rd October 2022
+- Improved "stupid" storage type reading. Now supports parallel reads without locking.
+- TLV reader and writer decoupled for ergonomics reason.
