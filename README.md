@@ -18,4 +18,5 @@ Whta does USE stand for? It's a recursive name U -> USE, S -> Storage, E -> Engi
 - Improved "stupid" storage type reading. Now supports parallel reads without locking.
 - TLV reader and writer decoupled for ergonomics reason.
 - Add HTTP transport layer.
-- Add physical snapshot API.
+- Add physical snapshot API without locking writes.
+- Add IDs to the DB writes.
