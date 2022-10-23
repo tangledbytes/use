@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/utkarsh-pro/use/pkg/id"
 )
 
 var (
@@ -27,13 +29,15 @@ type Storage struct {
 	wmu                 *sync.Mutex
 	wfd                 *os.File
 	lastSuccessWritePos int64
+	idgen               id.Gen
 }
 
 // New returns a new Storage instance.
 func New(dir string) *Storage {
 	return &Storage{
-		file: filepath.Join(dir, "stupid.db"),
-		wmu:  &sync.Mutex{},
+		file:  filepath.Join(dir, "stupid.db"),
+		wmu:   &sync.Mutex{},
+		idgen: id.New(),
 	}
 }
 
@@ -114,6 +118,7 @@ func (s *Storage) Set(key string, value []byte) error {
 	pw := newwriter(s.wfd)
 	if err := pw.write(
 		&Packet{
+			ID:  s.idgen.Next(),
 			Op:  SetOp,
 			Key: []byte(key),
 			Val: value,
@@ -149,6 +154,7 @@ func (s *Storage) Delete(key string) error {
 	pw := newwriter(s.wfd)
 	if err := pw.write(
 		&Packet{
+			ID:  s.idgen.Next(),
 			Op:  DelOp,
 			Key: []byte(key),
 			Val: nil,

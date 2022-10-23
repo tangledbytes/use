@@ -7,17 +7,21 @@ import (
 )
 
 const (
+	// IDTypeTLV is the type of the ID TLV
+	IDTypeTLV = byte(1)
+
 	// OpTypeTLV is the type of the operation TLV.
-	OpTypeTLV = byte(1)
+	OpTypeTLV = byte(2)
 
 	// KeyTypeTLV is the type of the key TLV.
-	KeyTypeTLV = byte(2)
+	KeyTypeTLV = byte(3)
 
 	// ValTypeTLV is the type of the value TLV.
-	ValTypeTLV = byte(3)
+	ValTypeTLV = byte(4)
 )
 
 type Packet struct {
+	ID  uint64
 	Op  byte
 	Key []byte
 	Val []byte
@@ -49,12 +53,25 @@ func newwriter(w io.Writer) *writer {
 
 // lread is a lazy reader which reads the packet
 func (r *reader) lread(p *Packet) error {
-	// read the operation type TLV
-	optlv := tlvrw.NewTLV(OpTypeTLV, nil)
-	if err := r.r.Read(optlv); err != nil {
+	// read the ID type TLV
+	idtlv := tlvrw.NewTLV(IDTypeTLV, nil)
+	if err := r.r.Read(idtlv); err != nil {
 		// EOF indicates that there are no more packets to read
 		if err == io.EOF {
 			return io.EOF
+		}
+
+		return err
+	}
+	p.ID = decodeid(idtlv.Val)
+
+	// read the operation type TLV
+	optlv := tlvrw.NewTLV(OpTypeTLV, nil)
+	if err := r.r.Read(optlv); err != nil {
+		if err == io.EOF {
+			// packets are set of 4 TLVs and we don't expect
+			// EOF on the second TLV read
+			return io.ErrUnexpectedEOF
 		}
 
 		return err
@@ -65,8 +82,8 @@ func (r *reader) lread(p *Packet) error {
 	keytlv := tlvrw.NewTLV(KeyTypeTLV, nil)
 	if err := r.r.Read(keytlv); err != nil {
 		if err == io.EOF {
-			// packets are set of 3 TLVs and we don't expect
-			// EOF on the second TLV read
+			// packets are set of 4 TLVs and we don't expect
+			// EOF on the third TLV read
 			return io.ErrUnexpectedEOF
 		}
 
@@ -100,6 +117,12 @@ func (r *reader) fill(p *Packet) error {
 }
 
 func (w *writer) write(p *Packet) error {
+	// write the ID type TLV
+	idtlv := tlvrw.NewTLV(IDTypeTLV, encodeid(p.ID))
+	if err := w.w.Write(idtlv); err != nil {
+		return err
+	}
+
 	// Write an operation type TLV
 	if err := w.w.Write(tlvrw.NewTLV(OpTypeTLV, []byte{p.Op})); err != nil {
 		return err
