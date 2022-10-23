@@ -45,6 +45,7 @@ func setupFlags() {
 	flag.StringVar(&Storage, "storage", Storage, "storage to use")
 	flag.StringVar(&Version, "version", Version, "version of the application")
 	flag.StringVar(&StoragePath, "storage-path", StoragePath, "path to the storage")
+	flag.Parse()
 }
 
 func String() string {

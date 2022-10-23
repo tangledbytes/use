@@ -52,6 +52,7 @@ func (t *Transport) setupHandlers() {
 	http.HandleFunc("/api/delete", createHTTPMethodsHandler([]string{http.MethodGet}, t.deleteHandler))
 	http.HandleFunc("/api/len", createHTTPMethodsHandler([]string{http.MethodGet}, t.lenHandler))
 	http.HandleFunc("/api/exists", createHTTPMethodsHandler([]string{http.MethodGet}, t.existsHandler))
+	http.HandleFunc("/api/snapshot", createHTTPMethodsHandler([]string{http.MethodGet}, t.snapshotHandler))
 }
 
 func (t *Transport) setHandler(w http.ResponseWriter, r *http.Request) {
@@ -117,6 +118,15 @@ func (t *Transport) existsHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	io.WriteString(w, utils.BoolToString(exists))
+}
+
+func (t *Transport) snapshotHandler(w http.ResponseWriter, r *http.Request) {
+	err := t.storage.PhysicalSnapshot(w)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		io.WriteString(w, err.Error())
+		return
+	}
 }
 
 func (t *Transport) versionHandler(w http.ResponseWriter, r *http.Request) {

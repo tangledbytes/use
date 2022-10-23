@@ -229,6 +229,33 @@ func (s *Storage) Len() (int, error) {
 	return len(set), nil
 }
 
+// PhysicalSnapshot writes the current state of the storage to the given writer.
+// The snapshot is written in a format that can be read by only by the storage.
+//
+// Note: The DB is locked for writes while the snapshot is being generated.
+func (s *Storage) PhysicalSnapshot(w io.Writer) error {
+	if !s.isInit() {
+		return ErrStorageNotInitialized
+	}
+
+	// Lock the writes on the database for the duration of the snapshot.
+	s.wmu.Lock()
+	defer s.wmu.Unlock()
+
+	// Create a new reader for the file.
+	tempfd, err := os.Open(s.file)
+	if err != nil {
+		return fmt.Errorf("error opening file for read fd: %w", err)
+	}
+
+	// Write snapshot to the writer.
+	if _, err := io.Copy(w, tempfd); err != nil {
+		return fmt.Errorf("error generating snapshot: %w", err)
+	}
+
+	return nil
+}
+
 // isInit returns true if the storage is initialized.
 func (s *Storage) isInit() bool {
 	return s.rfd != nil && s.wfd != nil

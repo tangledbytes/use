@@ -10,6 +10,8 @@ import (
 )
 
 func main() {
+	config.Setup()
+
 	storage, err := storage.New(storage.StorageType(config.Storage), config.StoragePath)
 	if err != nil {
 		panic(err)
