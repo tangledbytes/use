@@ -24,8 +24,9 @@ type Storage struct {
 
 	rfd *os.File
 
-	wmu *sync.Mutex
-	wfd *os.File
+	wmu                 *sync.Mutex
+	wfd                 *os.File
+	lastSuccessWritePos int64
 }
 
 // New returns a new Storage instance.
@@ -38,9 +39,15 @@ func New(dir string) *Storage {
 
 // Init configures the storage.
 func (s *Storage) Init() error {
-	wfd, err := os.OpenFile(s.file, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+	wfd, err := os.OpenFile(s.file, os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
 		return fmt.Errorf("error opening file for write fd: %w", err)
+	}
+	// Move to the end of the file.
+	if pos, err := wfd.Seek(0, io.SeekEnd); err != nil {
+		return fmt.Errorf("error seeking to end of file: %w", err)
+	} else {
+		s.lastSuccessWritePos = pos
 	}
 
 	rfd, err := os.OpenFile(s.file, os.O_RDONLY, 0666)
@@ -119,6 +126,14 @@ func (s *Storage) Set(key string, value []byte) error {
 		return fmt.Errorf("error syncing file: %w", err)
 	}
 
+	// record the last successful write position
+	pos, err := s.wfd.Seek(0, io.SeekCurrent)
+	if err != nil {
+		fmt.Println("[WARN]: failed to get current write position: ", err)
+		return nil
+	}
+
+	s.lastSuccessWritePos = pos
 	return nil
 }
 
@@ -142,6 +157,18 @@ func (s *Storage) Delete(key string) error {
 		return fmt.Errorf("error writing packet: %w", err)
 	}
 
+	if err := s.wfd.Sync(); err != nil {
+		return fmt.Errorf("error syncing file: %w", err)
+	}
+
+	// record the last successful write position
+	pos, err := s.wfd.Seek(0, io.SeekCurrent)
+	if err != nil {
+		fmt.Println("[WARN]: failed to get current write position: ", err)
+		return nil
+	}
+
+	s.lastSuccessWritePos = pos
 	return nil
 }
 
@@ -238,9 +265,8 @@ func (s *Storage) PhysicalSnapshot(w io.Writer) error {
 		return ErrStorageNotInitialized
 	}
 
-	// Lock the writes on the database for the duration of the snapshot.
-	s.wmu.Lock()
-	defer s.wmu.Unlock()
+	// Get the last successful write position
+	lastSuccessWritePos := s.lastSuccessWritePos
 
 	// Create a new reader for the file.
 	tempfd, err := os.Open(s.file)
@@ -248,8 +274,7 @@ func (s *Storage) PhysicalSnapshot(w io.Writer) error {
 		return fmt.Errorf("error opening file for read fd: %w", err)
 	}
 
-	// Write snapshot to the writer.
-	if _, err := io.Copy(w, tempfd); err != nil {
+	if _, err := io.CopyN(w, tempfd, lastSuccessWritePos); err != nil {
 		return fmt.Errorf("error generating snapshot: %w", err)
 	}
 
