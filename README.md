@@ -17,4 +17,5 @@ Whta does USE stand for? It's a recursive name U -> USE, S -> Storage, E -> Engi
 ### 23rd October 2022
 - Improved "stupid" storage type reading. Now supports parallel reads without locking.
 - TLV reader and writer decoupled for ergonomics reason.
-- Add HTTP transport layer
+- Add HTTP transport layer.
+- Add physical snapshot API.
