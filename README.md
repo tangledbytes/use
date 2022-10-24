@@ -20,3 +20,79 @@ Whta does USE stand for? It's a recursive name U -> USE, S -> Storage, E -> Engi
 - Add HTTP transport layer.
 - Add physical snapshot API without locking writes.
 - Add IDs to the DB writes.
+
+### Benchmarks
+**Set Operation - No Sync**
+```
+goos: darwin
+goarch: arm64
+pkg: github.com/utkarsh-pro/use/pkg/storage/stupid
+BenchmarkStupidSetNoSync/128B-10         	  510524	      2940 ns/op	  43.54 MB/s	     528 B/op	      14 allocs/op
+BenchmarkStupidSetNoSync/256B-10         	  337562	      3178 ns/op	  80.56 MB/s	     968 B/op	      15 allocs/op
+BenchmarkStupidSetNoSync/1K-10           	  331254	      3702 ns/op	 276.60 MB/s	    3560 B/op	      15 allocs/op
+BenchmarkStupidSetNoSync/2K-10           	  277218	      4347 ns/op	 471.09 MB/s	    7272 B/op	      15 allocs/op
+BenchmarkStupidSetNoSync/4K-10           	  247633	      4940 ns/op	 829.10 MB/s	   14440 B/op	      15 allocs/op
+BenchmarkStupidSetNoSync/8K-10           	  189014	      6698 ns/op	1223.11 MB/s	   28008 B/op	      15 allocs/op
+BenchmarkStupidSetNoSync/16K-10          	  118286	      9638 ns/op	1699.89 MB/s	   59496 B/op	      15 allocs/op
+BenchmarkStupidSetNoSync/32K-10          	   81962	     15055 ns/op	2176.56 MB/s	  114792 B/op	      15 allocs/op
+BenchmarkStupidSetNoSync/64K-10          	   48633	     25361 ns/op	2584.15 MB/s	  213097 B/op	      15 allocs/op
+BenchmarkStupidSetNoSync/128K-10         	   26365	     54351 ns/op	2411.60 MB/s	  409707 B/op	      15 allocs/op
+BenchmarkStupidSetNoSync/256K-10         	    8853	    128416 ns/op	2041.36 MB/s	  802924 B/op	      15 allocs/op
+BenchmarkStupidSetNoSync/512K-10         	    6817	    194201 ns/op	2699.72 MB/s	 1589360 B/op	      15 allocs/op
+BenchmarkStupidSetNoSync/1M-10           	    3225	    425407 ns/op	2464.88 MB/s	 3162225 B/op	      15 allocs/op
+BenchmarkStupidSetNoSync/2M-10           	    1670	    661528 ns/op	3170.16 MB/s	 6307950 B/op	      15 allocs/op
+BenchmarkStupidSetNoSync/4M-10           	     760	   1405073 ns/op	2985.11 MB/s	12599407 B/op	      15 allocs/op
+BenchmarkStupidSetNoSync/8M-10           	     434	   2839935 ns/op	2953.80 MB/s	25182318 B/op	      15 allocs/op
+PASS
+ok  	github.com/utkarsh-pro/use/pkg/storage/stupid	27.126s
+```
+
+**Set Operation - Sync**
+```
+goos: darwin
+goarch: arm64
+pkg: github.com/utkarsh-pro/use/pkg/storage/stupid
+BenchmarkStupidSetSync/128B-10         	      55	  18468191 ns/op	   0.01 MB/s	     528 B/op	      14 allocs/op
+BenchmarkStupidSetSync/256B-10         	      63	  18528600 ns/op	   0.01 MB/s	     968 B/op	      15 allocs/op
+BenchmarkStupidSetSync/1K-10           	      62	  18497663 ns/op	   0.06 MB/s	    3560 B/op	      15 allocs/op
+BenchmarkStupidSetSync/2K-10           	      63	  19417550 ns/op	   0.11 MB/s	    7272 B/op	      15 allocs/op
+BenchmarkStupidSetSync/4K-10           	      63	  19855822 ns/op	   0.21 MB/s	   14440 B/op	      15 allocs/op
+BenchmarkStupidSetSync/8K-10           	      63	  18257138 ns/op	   0.45 MB/s	   28008 B/op	      15 allocs/op
+BenchmarkStupidSetSync/16K-10          	      63	  18745929 ns/op	   0.87 MB/s	   59496 B/op	      15 allocs/op
+BenchmarkStupidSetSync/32K-10          	      64	  18535575 ns/op	   1.77 MB/s	  114792 B/op	      15 allocs/op
+BenchmarkStupidSetSync/64K-10          	      64	  18512802 ns/op	   3.54 MB/s	  213096 B/op	      15 allocs/op
+BenchmarkStupidSetSync/128K-10         	      62	  19197916 ns/op	   6.83 MB/s	  409706 B/op	      15 allocs/op
+BenchmarkStupidSetSync/256K-10         	      63	  18500382 ns/op	  14.17 MB/s	  802956 B/op	      15 allocs/op
+BenchmarkStupidSetSync/512K-10         	      58	  18841219 ns/op	  27.83 MB/s	 1589357 B/op	      15 allocs/op
+BenchmarkStupidSetSync/1M-10           	      58	  19661541 ns/op	  53.33 MB/s	 3162267 B/op	      15 allocs/op
+BenchmarkStupidSetSync/2M-10           	      58	  19847116 ns/op	 105.67 MB/s	 6307953 B/op	      15 allocs/op
+BenchmarkStupidSetSync/4M-10           	      56	  22466036 ns/op	 186.70 MB/s	12599409 B/op	      15 allocs/op
+BenchmarkStupidSetSync/8M-10           	      48	  24237001 ns/op	 346.11 MB/s	25182323 B/op	      15 allocs/op
+PASS
+ok  	github.com/utkarsh-pro/use/pkg/storage/stupid	19.562s
+```
+
+**Set Operation - Async Syncing**
+```
+goos: darwin
+goarch: arm64
+pkg: github.com/utkarsh-pro/use/pkg/storage/stupid
+BenchmarkStupidSetAsyncSync/128B-10         	     100	  12918243 ns/op	   0.01 MB/s	     673 B/op	      15 allocs/op
+BenchmarkStupidSetAsyncSync/256B-10         	     104	  12936466 ns/op	   0.02 MB/s	    1028 B/op	      16 allocs/op
+BenchmarkStupidSetAsyncSync/1K-10           	      91	  14281883 ns/op	   0.07 MB/s	    3626 B/op	      16 allocs/op
+BenchmarkStupidSetAsyncSync/2K-10           	      79	  15608401 ns/op	   0.13 MB/s	    7324 B/op	      16 allocs/op
+BenchmarkStupidSetAsyncSync/4K-10           	      98	  14038768 ns/op	   0.29 MB/s	   14489 B/op	      16 allocs/op
+BenchmarkStupidSetAsyncSync/8K-10           	      90	  14180032 ns/op	   0.58 MB/s	   28051 B/op	      16 allocs/op
+BenchmarkStupidSetAsyncSync/16K-10          	      81	  14509683 ns/op	   1.13 MB/s	   59523 B/op	      16 allocs/op
+BenchmarkStupidSetAsyncSync/32K-10          	      68	  16905240 ns/op	   1.94 MB/s	  114808 B/op	      16 allocs/op
+BenchmarkStupidSetAsyncSync/64K-10          	      64	  16283159 ns/op	   4.02 MB/s	  213112 B/op	      16 allocs/op
+BenchmarkStupidSetAsyncSync/128K-10         	      67	  16624864 ns/op	   7.88 MB/s	  409727 B/op	      16 allocs/op
+BenchmarkStupidSetAsyncSync/256K-10         	      64	  16924340 ns/op	  15.49 MB/s	  802960 B/op	      16 allocs/op
+BenchmarkStupidSetAsyncSync/512K-10         	      73	  17693342 ns/op	  29.63 MB/s	 1589403 B/op	      16 allocs/op
+BenchmarkStupidSetAsyncSync/1M-10           	      64	  19745871 ns/op	  53.10 MB/s	 3162248 B/op	      16 allocs/op
+BenchmarkStupidSetAsyncSync/2M-10           	      70	  20500542 ns/op	 102.30 MB/s	 6307972 B/op	      16 allocs/op
+BenchmarkStupidSetAsyncSync/4M-10           	     118	  10283815 ns/op	 407.85 MB/s	12599434 B/op	      16 allocs/op
+BenchmarkStupidSetAsyncSync/8M-10           	      68	  16451892 ns/op	 509.89 MB/s	25182336 B/op	      16 allocs/op
+PASS
+ok  	github.com/utkarsh-pro/use/pkg/storage/stupid	27.076s
+```

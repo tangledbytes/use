@@ -1,230 +1,429 @@
 package stupid
 
 import (
-	"math/rand"
+	"bytes"
+	"strings"
 	"testing"
-	"time"
 
+	"github.com/utkarsh-pro/use/pkg/storage/config"
 	"github.com/utkarsh-pro/use/pkg/storage/errors"
+	"github.com/utkarsh-pro/use/pkg/utils"
 )
 
-func generateRandomBytes(n int) []byte {
-	rand.Seed(time.Now().UnixNano())
-	b := make([]byte, n)
-	rand.Read(b)
+func TestAll(t *testing.T) {
+	cgfs := map[string]config.Config{
+		"nonesynccfg":  config.DefaultConfig(),
+		"synccfg":      config.DefaultConfig().WithSync(),
+		"asyncsynccfg": config.DefaultConfig().WithAsyncSync(),
+	}
 
-	return b
+	for name, cgf := range cgfs {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+
+			s := New(dir, cgf)
+
+			t.Run("isInit", func(t *testing.T) {
+				if s.isInit() {
+					t.Error("storage is initialized")
+				}
+
+				t.Run("Get", func(t *testing.T) {
+					_, err := s.Get("foo")
+					if err != errors.ErrStorageNotInitialized {
+						t.Error("expected ErrStorageNotInitialized")
+					}
+				})
+
+				t.Run("Set", func(t *testing.T) {
+					err := s.Set("foo", nil)
+					if err != errors.ErrStorageNotInitialized {
+						t.Error("expected ErrStorageNotInitialized")
+					}
+				})
+
+				t.Run("Delete", func(t *testing.T) {
+					err := s.Delete("foo")
+					if err != errors.ErrStorageNotInitialized {
+						t.Error("expected ErrStorageNotInitialized")
+					}
+				})
+
+				t.Run("Exists", func(t *testing.T) {
+					_, err := s.Exists("foo")
+					if err != errors.ErrStorageNotInitialized {
+						t.Error("expected ErrStorageNotInitialized")
+					}
+				})
+
+				t.Run("Len", func(t *testing.T) {
+					_, err := s.Len()
+					if err != errors.ErrStorageNotInitialized {
+						t.Error("expected ErrStorageNotInitialized")
+					}
+				})
+
+				t.Run("Close", func(t *testing.T) {
+					err := s.Close()
+					if err != errors.ErrStorageNotInitialized {
+						t.Error("expected ErrStorageNotInitialized")
+					}
+				})
+			})
+
+			t.Run("Init", func(t *testing.T) {
+				if err := s.Init(); err != nil {
+					t.Error(err)
+				}
+
+				t.Run("isInit", func(t *testing.T) {
+					if !s.isInit() {
+						t.Error("storage is not initialized")
+					}
+				})
+			})
+
+			valsforSet := make(map[string][]byte)
+			valsforSet["foo"] = []byte("bar")
+			valsforSet["bar"] = []byte("baz")
+			valsforSet["baz"] = []byte("foo")
+			valsforSet["mr.big.empty"] = make([]byte, 1024*1024*10)
+			valsforSet["mr.big.random"] = utils.GenerateRandomBytes(1024 * 1024 * 10)
+
+			t.Run("Set", func(t *testing.T) {
+				t.Run("Valid Set", func(t *testing.T) {
+					for k, v := range valsforSet {
+						if err := s.Set(k, v); err != nil {
+							t.Error(err)
+						}
+					}
+				})
+			})
+
+			t.Run("Get", func(t *testing.T) {
+				t.Run("Valid Get", func(t *testing.T) {
+					for k, v := range valsforSet {
+						val, err := s.Get(k)
+						if err != nil {
+							t.Error(err)
+						}
+
+						if string(val) != string(v) {
+							t.Error("value mismatch")
+						}
+					}
+				})
+
+				t.Run("Invalid Get", func(t *testing.T) {
+					_, err := s.Get("foo3")
+					if err != errors.ErrKeyNotFound {
+						t.Error("expected ErrKeyNotFound", "got", err)
+					}
+				})
+			})
+
+			t.Run("Delete", func(t *testing.T) {
+				t.Run("Valid Delete", func(t *testing.T) {
+					// Delete the first key that we encounter
+					for k := range valsforSet {
+						if err := s.Delete(k); err != nil {
+							t.Error(err)
+						}
+
+						_, err := s.Get(k)
+						if err != errors.ErrKeyNotFound {
+							t.Error("expected ErrKeyNotFound")
+						}
+
+						delete(valsforSet, k)
+						return
+					}
+				})
+			})
+
+			t.Run("Exists", func(t *testing.T) {
+				t.Run("Valid Exists", func(t *testing.T) {
+					for k := range valsforSet {
+						exists, err := s.Exists(k)
+						if err != nil {
+							t.Error(err)
+						}
+
+						if !exists {
+							t.Error("key does not exist")
+						}
+					}
+
+					if ok, err := s.Exists(string(utils.GenerateRandomBytes(5))); err != nil {
+						t.Error(err)
+					} else if ok {
+						t.Error("expected false")
+					}
+				})
+			})
+
+			t.Run("Len", func(t *testing.T) {
+				t.Run("Valid Len", func(t *testing.T) {
+					if n, err := s.Len(); err != nil {
+						t.Error(err)
+					} else if n != len(valsforSet) {
+						t.Error("expected", len(valsforSet), "got", n)
+					}
+
+					if err := s.Set("foo3", []byte("bazz")); err != nil {
+						t.Error(err)
+					}
+
+					if n, err := s.Len(); err != nil {
+						t.Error(err)
+					} else if n != len(valsforSet)+1 {
+						t.Error("expected", len(valsforSet)+1, "got", n)
+					}
+				})
+			})
+
+			t.Run("Close", func(t *testing.T) {
+				if err := s.Close(); err != nil {
+					t.Error(err)
+				}
+
+				t.Run("isInit", func(t *testing.T) {
+					if s.isInit() {
+						t.Error("storage is initialized")
+					}
+				})
+
+				t.Run("Get", func(t *testing.T) {
+					_, err := s.Get("foo")
+					if err != errors.ErrStorageNotInitialized {
+						t.Error("expected ErrStorageNotInitialized")
+					}
+				})
+
+				t.Run("Set", func(t *testing.T) {
+					err := s.Set("foo", nil)
+					if err != errors.ErrStorageNotInitialized {
+						t.Error("expected ErrStorageNotInitialized")
+					}
+				})
+
+				t.Run("Delete", func(t *testing.T) {
+					err := s.Delete("foo")
+					if err != errors.ErrStorageNotInitialized {
+						t.Error("expected ErrStorageNotInitialized")
+					}
+
+				})
+
+				t.Run("Exists", func(t *testing.T) {
+					_, err := s.Exists("foo")
+					if err != errors.ErrStorageNotInitialized {
+						t.Error("expected ErrStorageNotInitialized")
+					}
+				})
+
+				t.Run("Len", func(t *testing.T) {
+					_, err := s.Len()
+					if err != errors.ErrStorageNotInitialized {
+						t.Error("expected ErrStorageNotInitialized")
+					}
+				})
+			})
+		})
+	}
 }
 
-func TestAll(t *testing.T) {
-	dir := t.TempDir()
+type benchmarkTestCase struct {
+	name string
+	size int
+}
 
-	s := New(dir)
+func BenchmarkStupidSetNoSync(b *testing.B) {
+	dir := b.TempDir()
+	s := New(dir, config.DefaultConfig())
+	if err := s.Init(); err != nil {
+		b.Error(err)
+	}
+	defer s.Close()
 
-	t.Run("isInit", func(t *testing.T) {
-		if s.isInit() {
-			t.Error("storage is initialized")
-		}
+	tests := []benchmarkTestCase{
+		{"128B", 128},
+		{"256B", 256},
+		{"1K", 1024},
+		{"2K", 2048},
+		{"4K", 4096},
+		{"8K", 8192},
+		{"16K", 16384},
+		{"32K", 32768},
+		{"64K", 65536},
+		{"128K", 131072},
+		{"256K", 262144},
+		{"512K", 524288},
+		{"1M", 1048576},
+		{"2M", 2097152},
+		{"4M", 4194304},
+		{"8M", 8388608},
+	}
 
-		t.Run("Get", func(t *testing.T) {
-			_, err := s.Get("foo")
-			if err != errors.ErrStorageNotInitialized {
-				t.Error("expected ErrStorageNotInitialized")
-			}
-		})
+	for _, test := range tests {
+		b.Run(test.name, func(b *testing.B) {
+			b.SetBytes(int64(test.size))
 
-		t.Run("Set", func(t *testing.T) {
-			err := s.Set("foo", nil)
-			if err != errors.ErrStorageNotInitialized {
-				t.Error("expected ErrStorageNotInitialized")
-			}
-		})
+			key := "foo"
+			value := []byte(strings.Repeat(" ", test.size))
 
-		t.Run("Delete", func(t *testing.T) {
-			err := s.Delete("foo")
-			if err != errors.ErrStorageNotInitialized {
-				t.Error("expected ErrStorageNotInitialized")
-			}
-		})
-
-		t.Run("Exists", func(t *testing.T) {
-			_, err := s.Exists("foo")
-			if err != errors.ErrStorageNotInitialized {
-				t.Error("expected ErrStorageNotInitialized")
-			}
-		})
-
-		t.Run("Len", func(t *testing.T) {
-			_, err := s.Len()
-			if err != errors.ErrStorageNotInitialized {
-				t.Error("expected ErrStorageNotInitialized")
-			}
-		})
-
-		t.Run("Close", func(t *testing.T) {
-			err := s.Close()
-			if err != errors.ErrStorageNotInitialized {
-				t.Error("expected ErrStorageNotInitialized")
-			}
-		})
-	})
-
-	t.Run("Init", func(t *testing.T) {
-		if err := s.Init(); err != nil {
-			t.Error(err)
-		}
-
-		t.Run("isInit", func(t *testing.T) {
-			if !s.isInit() {
-				t.Error("storage is not initialized")
-			}
-		})
-	})
-
-	valsforSet := make(map[string][]byte)
-	valsforSet["foo"] = []byte("bar")
-	valsforSet["bar"] = []byte("baz")
-	valsforSet["baz"] = []byte("foo")
-	valsforSet["mr.big.empty"] = make([]byte, 1024*1024*10)
-	valsforSet["mr.big.random"] = generateRandomBytes(1024 * 1024 * 10)
-
-	t.Run("Set", func(t *testing.T) {
-		t.Run("Valid Set", func(t *testing.T) {
-			for k, v := range valsforSet {
-				if err := s.Set(k, v); err != nil {
-					t.Error(err)
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				if err := s.Set(key, value); err != nil {
+					b.Error(err)
 				}
 			}
+			b.StopTimer()
 		})
-	})
+	}
+}
 
-	t.Run("Get", func(t *testing.T) {
-		t.Run("Valid Get", func(t *testing.T) {
-			for k, v := range valsforSet {
-				val, err := s.Get(k)
-				if err != nil {
-					t.Error(err)
-				}
+func BenchmarkStupidSetSync(b *testing.B) {
+	dir := b.TempDir()
+	s := New(dir, config.DefaultConfig().WithSync())
+	if err := s.Init(); err != nil {
+		b.Error(err)
+	}
+	defer s.Close()
 
-				if string(val) != string(v) {
-					t.Error("value mismatch")
-				}
-			}
-		})
+	tests := []benchmarkTestCase{
+		{"128B", 128},
+		{"256B", 256},
+		{"1K", 1024},
+		{"2K", 2048},
+		{"4K", 4096},
+		{"8K", 8192},
+		{"16K", 16384},
+		{"32K", 32768},
+		{"64K", 65536},
+		{"128K", 131072},
+		{"256K", 262144},
+		{"512K", 524288},
+		{"1M", 1048576},
+		{"2M", 2097152},
+		{"4M", 4194304},
+		{"8M", 8388608},
+	}
 
-		t.Run("Invalid Get", func(t *testing.T) {
-			_, err := s.Get("foo3")
-			if err != errors.ErrKeyNotFound {
-				t.Error("expected ErrKeyNotFound")
-			}
-		})
-	})
+	for _, test := range tests {
+		b.Run(test.name, func(b *testing.B) {
+			b.SetBytes(int64(test.size))
 
-	t.Run("Delete", func(t *testing.T) {
-		t.Run("Valid Delete", func(t *testing.T) {
-			// Delete the first key that we encounter
-			for k := range valsforSet {
-				if err := s.Delete(k); err != nil {
-					t.Error(err)
-				}
+			key := "foo"
+			value := []byte(strings.Repeat(" ", test.size))
 
-				_, err := s.Get(k)
-				if err != errors.ErrKeyNotFound {
-					t.Error("expected ErrKeyNotFound")
-				}
-
-				delete(valsforSet, k)
-				return
-			}
-		})
-	})
-
-	t.Run("Exists", func(t *testing.T) {
-		t.Run("Valid Exists", func(t *testing.T) {
-			for k := range valsforSet {
-				exists, err := s.Exists(k)
-				if err != nil {
-					t.Error(err)
-				}
-
-				if !exists {
-					t.Error("key does not exist")
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				if err := s.Set(key, value); err != nil {
+					b.Error(err)
 				}
 			}
-
-			if ok, err := s.Exists(string(generateRandomBytes(5))); err != nil {
-				t.Error(err)
-			} else if ok {
-				t.Error("expected false")
-			}
+			b.StopTimer()
 		})
-	})
+	}
+}
 
-	t.Run("Len", func(t *testing.T) {
-		t.Run("Valid Len", func(t *testing.T) {
-			if n, err := s.Len(); err != nil {
-				t.Error(err)
-			} else if n != len(valsforSet) {
-				t.Error("expected", len(valsforSet), "got", n)
-			}
+func BenchmarkStupidSetAsyncSync(b *testing.B) {
+	dir := b.TempDir()
+	s := New(dir, config.DefaultConfig().WithAsyncSync())
+	if err := s.Init(); err != nil {
+		b.Error(err)
+	}
+	defer s.Close()
 
-			if err := s.Set("foo3", []byte("bazz")); err != nil {
-				t.Error(err)
-			}
+	tests := []benchmarkTestCase{
+		{"128B", 128},
+		{"256B", 256},
+		{"1K", 1024},
+		{"2K", 2048},
+		{"4K", 4096},
+		{"8K", 8192},
+		{"16K", 16384},
+		{"32K", 32768},
+		{"64K", 65536},
+		{"128K", 131072},
+		{"256K", 262144},
+		{"512K", 524288},
+		{"1M", 1048576},
+		{"2M", 2097152},
+		{"4M", 4194304},
+		{"8M", 8388608},
+	}
 
-			if n, err := s.Len(); err != nil {
-				t.Error(err)
-			} else if n != len(valsforSet)+1 {
-				t.Error("expected", len(valsforSet)+1, "got", n)
+	for _, test := range tests {
+		b.Run(test.name, func(b *testing.B) {
+			b.SetBytes(int64(test.size))
+
+			key := "foo"
+			value := []byte(strings.Repeat(" ", test.size))
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				if err := s.Set(key, value); err != nil {
+					b.Error(err)
+				}
 			}
+			b.StopTimer()
 		})
-	})
+	}
+}
 
-	t.Run("Close", func(t *testing.T) {
-		if err := s.Close(); err != nil {
-			t.Error(err)
-		}
+func BenchmarkStupidGet(b *testing.B) {
+	tests := []benchmarkTestCase{
+		{"128B", 128},
+		{"256B", 256},
+		{"1K", 1024},
+		{"2K", 2048},
+		{"4K", 4096},
+		{"8K", 8192},
+		{"16K", 16384},
+		{"32K", 32768},
+		{"64K", 65536},
+		{"128K", 131072},
+		{"256K", 262144},
+		{"512K", 524288},
+		{"1M", 1048576},
+		{"2M", 2097152},
+		{"4M", 4194304},
+		{"8M", 8388608},
+	}
 
-		t.Run("isInit", func(t *testing.T) {
-			if s.isInit() {
-				t.Error("storage is initialized")
+	for _, test := range tests {
+		b.Run(test.name, func(b *testing.B) {
+			dir := b.TempDir()
+			s := New(dir, config.DefaultConfig().WithSync())
+			if err := s.Init(); err != nil {
+				b.Error(err)
 			}
-		})
+			defer s.Close()
 
-		t.Run("Get", func(t *testing.T) {
-			_, err := s.Get("foo")
-			if err != errors.ErrStorageNotInitialized {
-				t.Error("expected ErrStorageNotInitialized")
-			}
-		})
+			b.SetBytes(int64(test.size))
 
-		t.Run("Set", func(t *testing.T) {
-			err := s.Set("foo", nil)
-			if err != errors.ErrStorageNotInitialized {
-				t.Error("expected ErrStorageNotInitialized")
-			}
-		})
+			key := "foo"
+			value := []byte(strings.Repeat(" ", test.size))
 
-		t.Run("Delete", func(t *testing.T) {
-			err := s.Delete("foo")
-			if err != errors.ErrStorageNotInitialized {
-				t.Error("expected ErrStorageNotInitialized")
+			if err := s.Set(key, value); err != nil {
+				b.Error(err)
 			}
 
-		})
-
-		t.Run("Exists", func(t *testing.T) {
-			_, err := s.Exists("foo")
-			if err != errors.ErrStorageNotInitialized {
-				t.Error("expected ErrStorageNotInitialized")
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				if val, err := s.Get(key); err != nil {
+					b.Error(err)
+				} else if !bytes.Equal(val, value) {
+					b.Error("expected", value, "got", val)
+				}
 			}
+			b.StopTimer()
 		})
-
-		t.Run("Len", func(t *testing.T) {
-			_, err := s.Len()
-			if err != errors.ErrStorageNotInitialized {
-				t.Error("expected ErrStorageNotInitialized")
-			}
-		})
-	})
+	}
 }

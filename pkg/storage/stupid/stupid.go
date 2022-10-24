@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/utkarsh-pro/use/pkg/id"
+	"github.com/utkarsh-pro/use/pkg/storage/config"
 	"github.com/utkarsh-pro/use/pkg/storage/errors"
 )
 
@@ -19,22 +20,33 @@ var (
 
 // Storage is a stupid storage.
 type Storage struct {
+	// file is path to the storage file.
 	file string
 
+	// rfd is the reading file descriptor.
 	rfd *os.File
 
-	wmu                 *sync.Mutex
-	wfd                 *os.File
+	// idgen is the id generator.
+	idgen id.Gen
+
+	// wmu is the write mutex.
+	wmu *sync.Mutex
+	// wfd is the writing file descriptor.
+	wfd *os.File
+	// lastSuccessWritePos is the last successful write position.
 	lastSuccessWritePos int64
-	idgen               id.Gen
+
+	// cfg is the storage config.
+	cfg config.Config
 }
 
 // New returns a new Storage instance.
-func New(dir string) *Storage {
+func New(dir string, cfg config.Config) *Storage {
 	return &Storage{
 		file:  filepath.Join(dir, "stupid.db"),
 		wmu:   &sync.Mutex{},
 		idgen: id.New(),
+		cfg:   cfg,
 	}
 }
 
@@ -129,8 +141,12 @@ func (s *Storage) Set(key string, value []byte) error {
 		return fmt.Errorf("error writing packet: %w", err)
 	}
 
-	if err := s.wfd.Sync(); err != nil {
-		return fmt.Errorf("error syncing file: %w", err)
+	if s.cfg.Sync == config.SyncTypeSync {
+		if err := s.wfd.Sync(); err != nil {
+			return fmt.Errorf("error syncing file: %w", err)
+		}
+	} else if s.cfg.Sync == config.SyncTypeAsync {
+		go s.wfd.Sync()
 	}
 
 	// record the last successful write position
@@ -165,8 +181,12 @@ func (s *Storage) Delete(key string) error {
 		return fmt.Errorf("error writing packet: %w", err)
 	}
 
-	if err := s.wfd.Sync(); err != nil {
-		return fmt.Errorf("error syncing file: %w", err)
+	if s.cfg.Sync == config.SyncTypeSync {
+		if err := s.wfd.Sync(); err != nil {
+			return fmt.Errorf("error syncing file: %w", err)
+		}
+	} else if s.cfg.Sync == config.SyncTypeAsync {
+		go s.wfd.Sync()
 	}
 
 	// record the last successful write position
@@ -310,6 +330,9 @@ func (s *Storage) GetByID(id uint64) (*Packet, error) {
 
 	pr := newreader(s.rfd)
 	for {
+		if pr.pos() >= s.lastSuccessWritePos {
+			break
+		}
 		packet := &Packet{}
 		if err := pr.lread(packet); err != nil {
 			if err == io.EOF {

@@ -1,8 +1,10 @@
 package utils
 
 import (
+	"math/rand"
 	"os"
 	"strconv"
+	"time"
 )
 
 // ToPointer takes any value and returns a pointer to that value.
@@ -59,4 +61,13 @@ func GetEnvOrDefault(key, defaultValue string) string {
 	}
 
 	return defaultValue
+}
+
+// GenerateRandomBytes generates a random byte slice of the given length.
+func GenerateRandomBytes(n int) []byte {
+	rand.Seed(time.Now().UnixNano())
+	b := make([]byte, n)
+	rand.Read(b)
+
+	return b
 }

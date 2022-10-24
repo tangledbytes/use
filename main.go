@@ -6,13 +6,14 @@ import (
 	"github.com/utkarsh-pro/use/pkg/config"
 	"github.com/utkarsh-pro/use/pkg/shutdown"
 	"github.com/utkarsh-pro/use/pkg/storage"
+	scfg "github.com/utkarsh-pro/use/pkg/storage/config"
 	"github.com/utkarsh-pro/use/pkg/transport"
 )
 
 func main() {
 	config.Setup()
 
-	storage, err := storage.New(storage.StorageType(config.Storage), config.StoragePath)
+	storage, err := storage.New(storage.StorageType(config.Storage), config.StoragePath, scfg.DefaultConfig())
 	if err != nil {
 		panic(err)
 	}

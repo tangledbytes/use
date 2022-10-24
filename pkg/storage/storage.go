@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/utkarsh-pro/use/pkg/storage/config"
 	"github.com/utkarsh-pro/use/pkg/storage/stupid"
 )
 
@@ -41,10 +42,10 @@ const (
 )
 
 // New returns a new Storage instance.
-func New(t StorageType, path string) (Storage, error) {
+func New(t StorageType, path string, config config.Config) (Storage, error) {
 	switch t {
 	case StupidStorageType:
-		storage := stupid.New(path)
+		storage := stupid.New(path, config)
 		return storage, nil
 	default:
 		return nil, fmt.Errorf("unknown storage type: %s", t)
