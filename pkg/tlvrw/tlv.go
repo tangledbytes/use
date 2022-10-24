@@ -38,3 +38,22 @@ func (tlv *TLV) ValuePos() int64 {
 func (tlv *TLV) String() string {
 	return fmt.Sprintf("TLV{Typ: %d, Len: %d, Val: %v}", tlv.Typ, tlv.Len, tlv.Val)
 }
+
+// Size returns the size of the TLV in bytes.
+//
+// This does not account for the unread Value and rather
+// relies on the Len field.
+func (tlv *TLV) Size() int64 {
+	return Size(tlv.Len)
+}
+
+// Size returns the size of the TLV in bytes.
+//
+// This does not account for the unread Value and rather
+// relies on the give length.
+func Size(len uint32) int64 {
+	typSize := 1
+	lenSize := 4
+
+	return int64(typSize + lenSize + int(len))
+}

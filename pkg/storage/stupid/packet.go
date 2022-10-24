@@ -1,6 +1,7 @@
 package stupid
 
 import (
+	"bytes"
 	"io"
 
 	"github.com/utkarsh-pro/use/pkg/tlvrw"
@@ -20,6 +21,8 @@ const (
 	ValTypeTLV = byte(4)
 )
 
+// Packet is the basic unit of data transfer between the engine
+// and the file system.
 type Packet struct {
 	ID  uint64
 	Op  byte
@@ -29,25 +32,29 @@ type Packet struct {
 	vtlv *tlvrw.TLV
 }
 
+// reader is a packet reader
 type reader struct {
 	// r is the underlying TLV reader
 	r *tlvrw.Reader
 }
 
+// writer is a packet writer
 type writer struct {
 	// w is the underlying TLV writer
-	w *tlvrw.Writer
+	w io.Writer
 }
 
+// newreader returns a new packet reader
 func newreader(r io.ReaderAt) *reader {
 	return &reader{
 		r: tlvrw.NewReader(r),
 	}
 }
 
+// newwriter returns a new packet writer
 func newwriter(w io.Writer) *writer {
 	return &writer{
-		w: tlvrw.NewWriter(w),
+		w: w,
 	}
 }
 
@@ -122,25 +129,48 @@ func (r *reader) pos() int64 {
 	return pos
 }
 
+// write writes the packet to the underlying writer
+//
+// write will copy the packet to a buffer and write the buffer
+// to the underlying writer in one go. This is to ensure that the
+// packet is written in one go and is not broken in between.
 func (w *writer) write(p *Packet) error {
+	// get estimate size of the packet
+	sizeOfIDInBytes := uint32(8) // 8 bytes for uint64
+	sizeOfOpInBytes := uint32(1) // 1 byte for byte
+	sizeOfKeyInBytes := uint32(len(p.Key))
+	sizeOfValInBytes := uint32(len(p.Val))
+
+	size := sizeOfIDInBytes + sizeOfOpInBytes + sizeOfKeyInBytes + sizeOfValInBytes
+
+	// buffer data and write it in one go
+	buf := bytes.NewBuffer(make([]byte, 0, size))
+
+	// create a TLV writer
+	tw := tlvrw.NewWriter(buf)
+
 	// write the ID type TLV
-	idtlv := tlvrw.NewTLV(IDTypeTLV, encodeid(p.ID))
-	if err := w.w.Write(idtlv); err != nil {
+	if err := tw.Write(tlvrw.NewTLV(IDTypeTLV, encodeid(p.ID))); err != nil {
 		return err
 	}
 
 	// Write an operation type TLV
-	if err := w.w.Write(tlvrw.NewTLV(OpTypeTLV, []byte{p.Op})); err != nil {
+	if err := tw.Write(tlvrw.NewTLV(OpTypeTLV, []byte{p.Op})); err != nil {
 		return err
 	}
 
 	// Write a key type TLV
-	if err := w.w.Write(tlvrw.NewTLV(KeyTypeTLV, p.Key)); err != nil {
+	if err := tw.Write(tlvrw.NewTLV(KeyTypeTLV, p.Key)); err != nil {
 		return err
 	}
 
 	// Write a value type TLV
-	if err := w.w.Write(tlvrw.NewTLV(ValTypeTLV, p.Val)); err != nil {
+	if err := tw.Write(tlvrw.NewTLV(ValTypeTLV, p.Val)); err != nil {
+		return err
+	}
+
+	// write the buffer to the underlying writer
+	if _, err := w.w.Write(buf.Bytes()); err != nil {
 		return err
 	}
 
