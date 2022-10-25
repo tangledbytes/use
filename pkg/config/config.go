@@ -70,12 +70,13 @@ func convertToEnvName(prefix, name string) string {
 
 func String() string {
 	return fmt.Sprintf(
-		"transport: %s, address: %s, storage: %s, version: %s, storage-path: %s, worker-id: %d",
+		"transport: %s, address: %s, storage: %s, version: %s, storage-path: %s, worker-id: %d, log-level: %s",
 		Transport,
 		Address,
 		Storage,
 		Version,
 		StoragePath,
 		WorkerID,
+		LogLevel,
 	)
 }
