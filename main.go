@@ -9,11 +9,35 @@ import (
 	"github.com/utkarsh-pro/use/pkg/transport"
 )
 
+func generateStorageCfg() scfg.Config {
+	storageCfg := scfg.DefaultConfig()
+
+	if config.DBSyncType == "sync" {
+		storageCfg = storageCfg.WithSync()
+	} else if config.DBSyncType == "async" {
+		storageCfg = storageCfg.WithAsyncSync()
+	} else if config.DBSyncType == "none" {
+		storageCfg = storageCfg.WithNoneSync()
+	}
+
+	if config.DBReadOnly {
+		storageCfg = storageCfg.WithReadOnly()
+	} else {
+		storageCfg = storageCfg.WithReadWrite()
+	}
+
+	return storageCfg
+}
+
 func main() {
 	config.Setup()
 	log.SetLevel(config.LogLevel)
 
-	storage, err := storage.New(storage.StorageType(config.Storage), config.StoragePath, scfg.DefaultConfig())
+	storage, err := storage.New(
+		storage.StorageType(config.Storage),
+		config.StoragePath,
+		generateStorageCfg(),
+	)
 	if err != nil {
 		panic(err)
 	}

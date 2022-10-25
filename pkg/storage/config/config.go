@@ -14,7 +14,8 @@ var (
 
 // Config is the config for the storage.
 type Config struct {
-	Sync SyncType
+	Sync     SyncType
+	ReadOnly bool
 }
 
 // DefaultConfig returns the default config.
@@ -39,5 +40,15 @@ func (cfg Config) WithAsyncSync() Config {
 // WithNoneSync sets the none type.
 func (cfg Config) WithNoneSync() Config {
 	cfg.Sync = SyncTypeNone
+	return cfg
+}
+
+func (cfg Config) WithReadOnly() Config {
+	cfg.ReadOnly = true
+	return cfg
+}
+
+func (cfg Config) WithReadWrite() Config {
+	cfg.ReadOnly = false
 	return cfg
 }

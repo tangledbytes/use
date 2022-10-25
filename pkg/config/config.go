@@ -15,6 +15,8 @@ var Storage = "stupid"
 var StoragePath = ""
 var WorkerID = 4095
 var LogLevel = "info"
+var DBSyncType = "none"
+var DBReadOnly = false
 
 func Setup() {
 	setupFlags()
@@ -58,6 +60,20 @@ func setupFlags() {
 		utils.GetEnvOrDefault(convertToEnvName("USE", "log-level"), LogLevel),
 		"log level",
 	)
+	flag.StringVar(
+		&DBSyncType,
+		"db-sync-type",
+		utils.GetEnvOrDefault(convertToEnvName("USE", "db-sync-type"), DBSyncType),
+		"db sync type",
+	)
+	flag.BoolVar(
+		&DBReadOnly,
+		"db-read-only",
+		utils.StringToBool(
+			utils.GetEnvOrDefault(convertToEnvName("USE", "db-read-only"), utils.BoolToString(DBReadOnly)),
+		),
+		"db read only",
+	)
 
 	flag.Parse()
 }
@@ -70,7 +86,16 @@ func convertToEnvName(prefix, name string) string {
 
 func String() string {
 	return fmt.Sprintf(
-		"transport: %s, address: %s, storage: %s, version: %s, storage-path: %s, worker-id: %d, log-level: %s",
+		`
+  transport: %s,
+  address: %s, 
+  storage: %s, 
+  version: %s,
+  storage-path: %s,
+  worker-id: %d,
+  log-level: %s
+  db-sync-type: %s
+  db-read-only: %t`,
 		Transport,
 		Address,
 		Storage,
@@ -78,5 +103,7 @@ func String() string {
 		StoragePath,
 		WorkerID,
 		LogLevel,
+		DBSyncType,
+		DBReadOnly,
 	)
 }

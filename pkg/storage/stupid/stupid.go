@@ -72,6 +72,12 @@ func (s *Storage) Init() error {
 	s.rfd = rfd
 	s.wfd = wfd
 
+	// Don't perform any recovery if the storage is read-only.
+	if s.cfg.ReadOnly {
+		log.Infoln("storage is read-only, skipping recovery")
+		return nil
+	}
+
 	// Fix the corrupt data if there is any
 	if err := s.DetectAndFix(); err != nil {
 		return fmt.Errorf("%s: %w", errors.ErrCorruptStorage, err)
@@ -138,6 +144,10 @@ func (s *Storage) Set(key string, value []byte) error {
 		return errors.ErrStorageNotInitialized
 	}
 
+	if s.cfg.ReadOnly {
+		return errors.ErrReadOnlyStorage
+	}
+
 	s.wmu.Lock()
 	defer s.wmu.Unlock()
 
@@ -176,6 +186,10 @@ func (s *Storage) Set(key string, value []byte) error {
 func (s *Storage) Delete(key string) error {
 	if !s.isInit() {
 		return errors.ErrStorageNotInitialized
+	}
+
+	if s.cfg.ReadOnly {
+		return errors.ErrReadOnlyStorage
 	}
 
 	s.wmu.Lock()

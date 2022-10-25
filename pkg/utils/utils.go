@@ -53,6 +53,12 @@ func StringToInt(s string) int {
 	return i
 }
 
+// StringToBool returns true if the given string is "true", otherwise
+// returns false.
+func StringToBool(s string) bool {
+	return s == "true"
+}
+
 // GetEnvOrDefault returns the value of the given environment variable
 // if it exists, otherwise returns the given default value.
 func GetEnvOrDefault(key, defaultValue string) string {
