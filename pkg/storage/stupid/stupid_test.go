@@ -2,6 +2,7 @@ package stupid
 
 import (
 	"bytes"
+	"os"
 	"strings"
 	"testing"
 
@@ -231,6 +232,92 @@ func TestAll(t *testing.T) {
 					}
 				})
 			})
+		})
+	}
+}
+
+func TestStorage_DetectAndFix(t *testing.T) {
+	// DetectAndFix test will first create a storage and will write huge chunk of data
+	// to it and then will close the storage. After that it will corrupt the storage
+	// by removing the last byte of the file and will try to detect and fix the storage.
+	// If the storage is fixed successfully, then the test will pass.
+
+	// dir is the directory where the storage will be created.
+	dir := t.TempDir()
+
+	// Create a storage
+	s := New(dir, config.DefaultConfig())
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Write huge chunk of data to the storage
+	for i := 0; i < 1e5; i++ {
+		// A packet is going to be made up of 4 TLVs
+		// 1st TLV size => 1 + 4 + 8 = 13
+		// 2nd TLV size => 1 + 4 + 1 = 6
+		// 3rd TLV size => 1 + 4 + 5 = 10
+		// 4th TLV size => 1 + 4 + 5 = 10
+		// Total size => 13 + 6 + 10 + 10 = 39
+		if err := s.Set(string(utils.GenerateRandomBytes(5)), utils.GenerateRandomBytes(5)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Close the storage
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	testCases := []struct {
+		name         string
+		corruptBytes int
+	}{
+		{
+			name:         "corrupt last byte",
+			corruptBytes: 1,
+		},
+		{
+			name:         "corrupt last 2 bytes",
+			corruptBytes: 2,
+		},
+		{
+			name:         "corrupt random bytes [1, 40)",
+			corruptBytes: utils.GetRandomInRange(1, 40),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Corrupt the storage by removing the last byte of the file
+			f, err := os.OpenFile(s.file, os.O_RDWR, 0644)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Get position of the last byte
+			fi, err := f.Stat()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Remove the random number of bytes from the end of the file
+			if err := f.Truncate(fi.Size() - int64(utils.GetRandomInRange(1, 40))); err != nil {
+				t.Fatal(err)
+			}
+
+			// Close the file
+			if err := f.Close(); err != nil {
+				t.Fatal(err)
+			}
+
+			// create the store again
+			s = New(dir, config.DefaultConfig())
+
+			// Detect and fix the storage
+			if err := s.Init(); err != nil {
+				t.Fatal(err)
+			}
 		})
 	}
 }

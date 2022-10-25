@@ -74,7 +74,7 @@ func (s *Storage) Init() error {
 
 	// Fix the corrupt data if there is any
 	if err := s.DetectAndFix(); err != nil {
-		return errors.ErrCorruptStorage
+		return fmt.Errorf("%s: %w", errors.ErrCorruptStorage, err)
 	}
 
 	return nil
@@ -204,7 +204,7 @@ func (s *Storage) Delete(key string) error {
 	// record the last successful write position
 	pos, err := s.wfd.Seek(0, io.SeekCurrent)
 	if err != nil {
-		log.Warnf("failed to get current write position: ", err)
+		log.Warnln("failed to get current write position: ", err)
 		return nil
 	}
 
@@ -330,6 +330,11 @@ func (s *Storage) ForEach(fn func(*reader, *Packet, error) error) error {
 }
 
 // DetectAndFix detects corrupt data in the store and tries to fix it
+//
+// Note: DetectAndFix will remove the corrupt data from the store which means
+// that some of the writes might vanish. But this is same because the storage engine
+// provides guaranatees only in the cases when it is running in the sync mode and a
+// response is sent back to the client indicating a success.
 func (s *Storage) DetectAndFix() error {
 	if !s.isInit() {
 		return errors.ErrStorageNotInitialized
@@ -343,7 +348,7 @@ func (s *Storage) DetectAndFix() error {
 		if err != nil {
 			if err == io.ErrUnexpectedEOF {
 				// Discard the rest of the file
-				if err := s.rfd.Truncate(lastSuccessRead); err != nil {
+				if err := s.wfd.Truncate(lastSuccessRead); err != nil {
 					return fmt.Errorf("error truncating file: %w", err)
 				}
 
@@ -358,6 +363,8 @@ func (s *Storage) DetectAndFix() error {
 
 				return nil
 			}
+
+			return err
 		}
 
 		lastSuccessRead = pr.pos()

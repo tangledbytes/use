@@ -71,3 +71,10 @@ func GenerateRandomBytes(n int) []byte {
 
 	return b
 }
+
+// GetRandomInRange takes a min and max value and returns a random value
+// between the two.
+func GetRandomInRange(min, max int) int {
+	rand.Seed(time.Now().UnixNano())
+	return rand.Intn(max-min) + min
+}
