@@ -1,9 +1,8 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/utkarsh-pro/use/pkg/config"
+	"github.com/utkarsh-pro/use/pkg/log"
 	"github.com/utkarsh-pro/use/pkg/shutdown"
 	"github.com/utkarsh-pro/use/pkg/storage"
 	scfg "github.com/utkarsh-pro/use/pkg/storage/config"
@@ -12,6 +11,7 @@ import (
 
 func main() {
 	config.Setup()
+	log.SetLevel(config.LogLevel)
 
 	storage, err := storage.New(storage.StorageType(config.Storage), config.StoragePath, scfg.DefaultConfig())
 	if err != nil {
@@ -33,7 +33,7 @@ func main() {
 		}
 	}()
 
-	fmt.Println("use is running: ", config.String())
+	log.Println("use is running: ", config.String())
 
 	shutdown.RegisterFunc(storage.Close)
 	shutdown.RegisterFunc(transport.Shutdown)

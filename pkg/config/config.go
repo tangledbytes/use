@@ -14,6 +14,7 @@ var Address = ":8080"
 var Storage = "stupid"
 var StoragePath = ""
 var WorkerID = 0
+var LogLevel = "info"
 
 func Setup() {
 	setupFlags()
@@ -50,6 +51,12 @@ func setupFlags() {
 		utils.StringToInt(utils.GetEnvOrDefault(convertToEnvName("USE", "worker-id"),
 			utils.IntToString(WorkerID))),
 		"worker id",
+	)
+	flag.StringVar(
+		&LogLevel,
+		"log-level",
+		utils.GetEnvOrDefault(convertToEnvName("USE", "log-level"), LogLevel),
+		"log level",
 	)
 
 	flag.Parse()

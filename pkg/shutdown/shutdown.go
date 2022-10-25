@@ -1,10 +1,11 @@
 package shutdown
 
 import (
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/utkarsh-pro/use/pkg/log"
 )
 
 var fns []func() error
@@ -21,7 +22,7 @@ func OnSignal() {
 
 	for _, fn := range fns {
 		if err := fn(); err != nil {
-			fmt.Println(err)
+			log.Errorln(err)
 		}
 	}
 }
