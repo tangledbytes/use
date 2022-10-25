@@ -33,7 +33,7 @@ func main() {
 		}
 	}()
 
-	log.Println("use is running: ", config.String())
+	log.Infoln("use is running: ", config.String())
 
 	shutdown.RegisterFunc(storage.Close)
 	shutdown.RegisterFunc(transport.Shutdown)

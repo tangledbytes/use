@@ -347,6 +347,8 @@ func (s *Storage) DetectAndFix() error {
 	return s.ForEach(func(pr *reader, p *Packet, err error) error {
 		if err != nil {
 			if err == io.ErrUnexpectedEOF {
+				log.Warnln("Found corrupted data in the store. Trying to fix it...")
+
 				// Discard the rest of the file
 				if err := s.wfd.Truncate(lastSuccessRead); err != nil {
 					return fmt.Errorf("error truncating file: %w", err)
@@ -361,6 +363,7 @@ func (s *Storage) DetectAndFix() error {
 				// Update the last successful write position
 				s.lastSuccessWritePos = lastSuccessRead
 
+				log.Infoln("Successfully fixed the corrupted data in the store")
 				return nil
 			}
 
