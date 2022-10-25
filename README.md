@@ -123,3 +123,8 @@ ok  	github.com/utkarsh-pro/use/pkg/storage/stupid	23.241s
 - Add HTTP transport layer.
 - Add physical snapshot API without locking writes.
 - Add IDs to the DB writes.
+
+### 25th October 2022
+- Add custom logger.
+- Add support for data corruption detection and auto fixing during the startup.
+- Add `ForEach` method to minimize code duplication and better control over the iteration.
