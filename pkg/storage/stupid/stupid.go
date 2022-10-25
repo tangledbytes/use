@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/utkarsh-pro/use/pkg/id"
+	"github.com/utkarsh-pro/use/pkg/log"
 	"github.com/utkarsh-pro/use/pkg/storage/config"
 	"github.com/utkarsh-pro/use/pkg/storage/errors"
 )
@@ -71,6 +72,11 @@ func (s *Storage) Init() error {
 	s.rfd = rfd
 	s.wfd = wfd
 
+	// Fix the corrupt data if there is any
+	if err := s.DetectAndFix(); err != nil {
+		return errors.ErrCorruptStorage
+	}
+
 	return nil
 }
 
@@ -81,32 +87,38 @@ func (s *Storage) Get(key string) ([]byte, error) {
 	}
 
 	var candidate *Packet = nil
-	pr := newreader(s.rfd)
+	var pr *reader = nil
 
-	for {
-		// don't read beyond the last successful write position
-		if pr.pos() >= s.lastSuccessWritePos {
-			break
+	err := s.ForEach(func(r *reader, p *Packet, err error) error {
+		// get the reader
+		if pr == nil {
+			pr = r
 		}
 
-		packet := &Packet{}
-		if err := pr.lread(packet); err != nil {
+		if err != nil {
+			// Although this should NEVER happen. NEVER.
 			if err == io.EOF {
-				break
+				return nil
 			}
-
-			return nil, fmt.Errorf("error reading packet: %w", err)
 		}
 
-		if string(packet.Key) == key {
-			if packet.Op == DelOp {
+		if string(p.Key) == key {
+			if p.Op == DelOp {
 				candidate = nil
+				return nil
 			}
 
-			if packet.Op == SetOp {
-				candidate = packet
+			if p.Op == SetOp {
+				candidate = p
+				return nil
 			}
 		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
 	}
 
 	if candidate == nil {
@@ -114,7 +126,7 @@ func (s *Storage) Get(key string) ([]byte, error) {
 	}
 
 	if err := pr.fill(candidate); err != nil {
-		return nil, fmt.Errorf("error filling packet: %w", err)
+		return nil, err
 	}
 
 	return candidate.Val, nil
@@ -152,7 +164,7 @@ func (s *Storage) Set(key string, value []byte) error {
 	// record the last successful write position
 	pos, err := s.wfd.Seek(0, io.SeekCurrent)
 	if err != nil {
-		fmt.Println("[WARN]: failed to get current write position: ", err)
+		log.Warnln("failed to get current write position: ", err)
 		return nil
 	}
 
@@ -192,7 +204,7 @@ func (s *Storage) Delete(key string) error {
 	// record the last successful write position
 	pos, err := s.wfd.Seek(0, io.SeekCurrent)
 	if err != nil {
-		fmt.Println("[WARN]: failed to get current write position: ", err)
+		log.Warnf("failed to get current write position: ", err)
 		return nil
 	}
 
@@ -207,33 +219,26 @@ func (s *Storage) Exists(key string) (bool, error) {
 	}
 
 	var candidate *Packet = nil
-	pr := newreader(s.rfd)
 
-	for {
-		// don't read beyond the last successful write position
-		if pr.pos() >= s.lastSuccessWritePos {
-			break
+	s.ForEach(func(r *reader, p *Packet, err error) error {
+		if err != nil {
+			return err
 		}
 
-		packet := &Packet{}
-		if err := pr.lread(packet); err != nil {
-			if err == io.EOF {
-				break
-			}
-
-			return false, fmt.Errorf("error reading packet: %w", err)
-		}
-
-		if string(packet.Key) == key {
-			if packet.Op == DelOp {
+		if string(p.Key) == key {
+			if p.Op == DelOp {
 				candidate = nil
+				return nil
 			}
 
-			if packet.Op == SetOp {
-				candidate = packet
+			if p.Op == SetOp {
+				candidate = p
+				return nil
 			}
 		}
-	}
+
+		return nil
+	})
 
 	return candidate != nil, nil
 }
@@ -245,32 +250,16 @@ func (s *Storage) Len() (int, error) {
 	}
 
 	set := make(map[string]struct{})
-	pr := newreader(s.rfd)
 
-	for {
-		// don't read beyond the last successful write position
-		if pr.pos() >= s.lastSuccessWritePos {
-			break
+	if err := s.ForEach(func(r *reader, p *Packet, err error) error {
+		if err != nil {
+			return err
 		}
 
-		packet := &Packet{}
-		if err := pr.lread(packet); err != nil {
-			if err == io.EOF {
-				break
-			}
-
-			return 0, fmt.Errorf("error reading packet: %w", err)
-		}
-
-		if packet.Op == DelOp {
-			delete(set, string(packet.Key))
-			continue
-		}
-
-		if packet.Op == SetOp {
-			set[string(packet.Key)] = struct{}{}
-			continue
-		}
+		set[string(p.Key)] = struct{}{}
+		return nil
+	}); err != nil {
+		return 0, err
 	}
 
 	return len(set), nil
@@ -301,6 +290,81 @@ func (s *Storage) PhysicalSnapshot(w io.Writer) error {
 	return nil
 }
 
+// ForEach goes through the entire store and executes the given function
+// on each packet that it reads.
+func (s *Storage) ForEach(fn func(*reader, *Packet, error) error) error {
+	// Fail silently if the storage hasn't been initialized yet
+	if !s.isInit() {
+		return errors.ErrStorageNotInitialized
+	}
+
+	pr := newreader(s.rfd)
+
+	for {
+		// don't read beyond the last successful write position
+		if pr.pos() >= s.lastSuccessWritePos {
+			break
+		}
+
+		packet := &Packet{}
+		err := pr.lread(packet)
+		if err != nil {
+			// If we reach the end of the file, break.
+			//
+			// We don't call the function with the packet
+			// because we know that the packet has to be invalid.
+			//
+			// Due to the design of TLV, it is impossible to encounter
+			// EOF while reading a packet (even at the end).
+			if err == io.EOF {
+				break
+			}
+		}
+
+		if _err := fn(pr, packet, err); _err != nil {
+			return _err
+		}
+	}
+
+	return nil
+}
+
+// DetectAndFix detects corrupt data in the store and tries to fix it
+func (s *Storage) DetectAndFix() error {
+	if !s.isInit() {
+		return errors.ErrStorageNotInitialized
+	}
+
+	lastSuccessRead := int64(0)
+
+	// Go through the entire store and try to see if we can get valid
+	// packet reads from the store
+	return s.ForEach(func(pr *reader, p *Packet, err error) error {
+		if err != nil {
+			if err == io.ErrUnexpectedEOF {
+				// Discard the rest of the file
+				if err := s.rfd.Truncate(lastSuccessRead); err != nil {
+					return fmt.Errorf("error truncating file: %w", err)
+				}
+
+				// No need to update the read position since we only rely on ReadAt
+				// and that doesn't changes os.File read position
+
+				// Move the write position to the last successful read position
+				s.wfd.Seek(lastSuccessRead, io.SeekStart)
+
+				// Update the last successful write position
+				s.lastSuccessWritePos = lastSuccessRead
+
+				return nil
+			}
+		}
+
+		lastSuccessRead = pr.pos()
+		return nil
+	})
+}
+
 // Close closes the storage.
 func (s *Storage) Close() error {
 	if !s.isInit() {
@@ -328,23 +392,26 @@ func (s *Storage) GetByID(id uint64) (*Packet, error) {
 		return nil, errors.ErrStorageNotInitialized
 	}
 
-	pr := newreader(s.rfd)
-	for {
-		if pr.pos() >= s.lastSuccessWritePos {
-			break
-		}
-		packet := &Packet{}
-		if err := pr.lread(packet); err != nil {
-			if err == io.EOF {
-				break
-			}
+	var packet *Packet
+	desiredErr := fmt.Errorf("desired")
 
-			return nil, fmt.Errorf("error reading packet: %w", err)
+	if err := s.ForEach(func(r *reader, p *Packet, err error) error {
+		if err != nil {
+			return err
 		}
 
-		if packet.ID == id {
+		if p.ID == id {
+			packet = p
+			return desiredErr
+		}
+
+		return nil
+	}); err != nil {
+		if err == desiredErr {
 			return packet, nil
 		}
+
+		return nil, err
 	}
 
 	return nil, errors.ErrKeyNotFound

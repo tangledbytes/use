@@ -90,6 +90,8 @@ func TestAll(t *testing.T) {
 			valsforSet["mr.big.empty"] = make([]byte, 1024*1024*10)
 			valsforSet["mr.big.random"] = utils.GenerateRandomBytes(1024 * 1024 * 10)
 
+			setLength := len(valsforSet)
+
 			t.Run("Set", func(t *testing.T) {
 				t.Run("Valid Set", func(t *testing.T) {
 					for k, v := range valsforSet {
@@ -166,8 +168,8 @@ func TestAll(t *testing.T) {
 				t.Run("Valid Len", func(t *testing.T) {
 					if n, err := s.Len(); err != nil {
 						t.Error(err)
-					} else if n != len(valsforSet) {
-						t.Error("expected", len(valsforSet), "got", n)
+					} else if n != setLength {
+						t.Error("expected", setLength, "got", n)
 					}
 
 					if err := s.Set("foo3", []byte("bazz")); err != nil {
@@ -176,8 +178,8 @@ func TestAll(t *testing.T) {
 
 					if n, err := s.Len(); err != nil {
 						t.Error(err)
-					} else if n != len(valsforSet)+1 {
-						t.Error("expected", len(valsforSet)+1, "got", n)
+					} else if n != setLength+1 {
+						t.Error("expected", setLength+1, "got", n)
 					}
 				})
 			})

@@ -7,4 +7,5 @@ import "fmt"
 var (
 	ErrStorageNotInitialized = fmt.Errorf("storage is not initialized")
 	ErrKeyNotFound           = fmt.Errorf("key not found")
+	ErrCorruptStorage        = fmt.Errorf("storage is corrupted")
 )

@@ -101,6 +101,13 @@ func (r *reader) lread(p *Packet) error {
 	// read the value type TLV lazily
 	valtlv := tlvrw.NewTLV(ValTypeTLV, nil)
 	if err := r.r.ReadLazy(valtlv); err != nil {
+		if err == io.EOF {
+			// packets are set of 4 TLVs and we don't expect
+			// EOF on the fourth TLV read because TLV readers
+			// don't read beyond what is required.
+			return io.ErrUnexpectedEOF
+		}
+
 		return err
 	}
 	p.vtlv = valtlv
