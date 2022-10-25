@@ -13,7 +13,7 @@ var Transport = "http"
 var Address = ":8080"
 var Storage = "stupid"
 var StoragePath = ""
-var WorkerID = 0
+var WorkerID = 4095
 var LogLevel = "info"
 
 func Setup() {
