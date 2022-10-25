@@ -238,25 +238,6 @@ func (s *Storage) Exists(key string) (bool, error) {
 	return candidate != nil, nil
 }
 
-// Close closes the storage.
-func (s *Storage) Close() error {
-	if !s.isInit() {
-		return errors.ErrStorageNotInitialized
-	}
-
-	if err := s.rfd.Close(); err != nil {
-		return fmt.Errorf("error closing read fd: %w", err)
-	}
-	s.rfd = nil
-
-	if err := s.wfd.Close(); err != nil {
-		return fmt.Errorf("error closing write fd: %w", err)
-	}
-	s.wfd = nil
-
-	return nil
-}
-
 // Len returns the number of keys in the storage.
 func (s *Storage) Len() (int, error) {
 	if !s.isInit() {
@@ -316,6 +297,25 @@ func (s *Storage) PhysicalSnapshot(w io.Writer) error {
 	if _, err := io.CopyN(w, tempfd, lastSuccessWritePos); err != nil {
 		return fmt.Errorf("error generating snapshot: %w", err)
 	}
+
+	return nil
+}
+
+// Close closes the storage.
+func (s *Storage) Close() error {
+	if !s.isInit() {
+		return errors.ErrStorageNotInitialized
+	}
+
+	if err := s.rfd.Close(); err != nil {
+		return fmt.Errorf("error closing read fd: %w", err)
+	}
+	s.rfd = nil
+
+	if err := s.wfd.Close(); err != nil {
+		return fmt.Errorf("error closing write fd: %w", err)
+	}
+	s.wfd = nil
 
 	return nil
 }
