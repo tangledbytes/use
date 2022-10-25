@@ -13,13 +13,7 @@ That's it for the first iteration. For the future iteration (if that ever happen
 
 Whta does USE stand for? It's a recursive name U -> USE, S -> Storage, E -> Engine
 
-## Updates
-### 23rd October 2022
-- Improved "stupid" storage type reading. Now supports parallel reads without locking.
-- TLV reader and writer decoupled for ergonomics reason.
-- Add HTTP transport layer.
-- Add physical snapshot API without locking writes.
-- Add IDs to the DB writes.
+
 
 ### Benchmarks
 **Set Operation - No Sync**
@@ -96,3 +90,36 @@ BenchmarkStupidSetAsyncSync/8M-10           	      68	  16451892 ns/op	 509.89 M
 PASS
 ok  	github.com/utkarsh-pro/use/pkg/storage/stupid	27.076s
 ```
+
+**Get Operation**
+```
+goos: darwin
+goarch: arm64
+pkg: github.com/utkarsh-pro/use/pkg/storage/stupid
+BenchmarkStupidGet/128B-10         	  248076	      4941 ns/op	  25.91 MB/s	     360 B/op	      20 allocs/op
+BenchmarkStupidGet/256B-10         	  229862	      4884 ns/op	  52.42 MB/s	     488 B/op	      20 allocs/op
+BenchmarkStupidGet/1K-10           	  222211	      5003 ns/op	 204.69 MB/s	    1256 B/op	      20 allocs/op
+BenchmarkStupidGet/2K-10           	  218511	      5123 ns/op	 399.79 MB/s	    2280 B/op	      20 allocs/op
+BenchmarkStupidGet/4K-10           	  211711	      5297 ns/op	 773.32 MB/s	    4328 B/op	      20 allocs/op
+BenchmarkStupidGet/8K-10           	  192913	      5811 ns/op	1409.83 MB/s	    8424 B/op	      20 allocs/op
+BenchmarkStupidGet/16K-10          	  169510	      6750 ns/op	2427.38 MB/s	   16616 B/op	      20 allocs/op
+BenchmarkStupidGet/32K-10          	  135506	      8380 ns/op	3910.19 MB/s	   33000 B/op	      20 allocs/op
+BenchmarkStupidGet/64K-10          	   99961	     11797 ns/op	5555.51 MB/s	   65768 B/op	      20 allocs/op
+BenchmarkStupidGet/128K-10         	   66978	     17901 ns/op	7322.18 MB/s	  131305 B/op	      20 allocs/op
+BenchmarkStupidGet/256K-10         	   39435	     29523 ns/op	8879.21 MB/s	  262377 B/op	      20 allocs/op
+BenchmarkStupidGet/512K-10         	   21183	     56949 ns/op	9206.26 MB/s	  524523 B/op	      20 allocs/op
+BenchmarkStupidGet/1M-10           	   10000	    104689 ns/op	10016.09 MB/s	 1048813 B/op	      20 allocs/op
+BenchmarkStupidGet/2M-10           	    6278	    187423 ns/op	11189.42 MB/s	 2097390 B/op	      20 allocs/op
+BenchmarkStupidGet/4M-10           	    2946	    407927 ns/op	10281.99 MB/s	 4194539 B/op	      20 allocs/op
+BenchmarkStupidGet/8M-10           	    1182	   1018820 ns/op	8233.65 MB/s	 8388843 B/op	      20 allocs/op
+PASS
+ok  	github.com/utkarsh-pro/use/pkg/storage/stupid	23.241s
+```
+
+## Updates
+### 23rd October 2022
+- Improved "stupid" storage type reading. Now supports parallel reads without locking.
+- TLV reader and writer decoupled for ergonomics reason.
+- Add HTTP transport layer.
+- Add physical snapshot API without locking writes.
+- Add IDs to the DB writes.
