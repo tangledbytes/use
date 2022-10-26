@@ -43,11 +43,13 @@ func (cfg Config) WithNoneSync() Config {
 	return cfg
 }
 
+// WithReadOnly sets the read only type.
 func (cfg Config) WithReadOnly() Config {
 	cfg.ReadOnly = true
 	return cfg
 }
 
+// WithReadWrite sets the read write type.
 func (cfg Config) WithReadWrite() Config {
 	cfg.ReadOnly = false
 	return cfg

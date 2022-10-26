@@ -7,6 +7,7 @@ import (
 
 	"github.com/utkarsh-pro/use/pkg/config"
 	"github.com/utkarsh-pro/use/pkg/storage"
+	"github.com/utkarsh-pro/use/pkg/storage/errors"
 	"github.com/utkarsh-pro/use/pkg/utils"
 )
 
@@ -60,6 +61,11 @@ func (t *Transport) setHandler(w http.ResponseWriter, r *http.Request) {
 	val := r.URL.Query().Get("val")
 
 	if err := t.storage.Set(key, []byte(val)); err != nil {
+		if err == errors.ErrReadOnlyStorage {
+			w.WriteHeader(http.StatusTeapot)
+			return
+		}
+
 		w.WriteHeader(http.StatusInternalServerError)
 		io.WriteString(w, err.Error())
 		return
@@ -73,6 +79,11 @@ func (t *Transport) getHandler(w http.ResponseWriter, r *http.Request) {
 
 	val, err := t.storage.Get(key)
 	if err != nil {
+		if err == errors.ErrKeyNotFound {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
 		w.WriteHeader(http.StatusInternalServerError)
 		io.WriteString(w, err.Error())
 		return
@@ -86,6 +97,11 @@ func (t *Transport) deleteHandler(w http.ResponseWriter, r *http.Request) {
 	key := r.URL.Query().Get("key")
 
 	if err := t.storage.Delete(key); err != nil {
+		if err == errors.ErrReadOnlyStorage {
+			w.WriteHeader(http.StatusTeapot)
+			return
+		}
+
 		w.WriteHeader(http.StatusInternalServerError)
 		io.WriteString(w, err.Error())
 		return
@@ -111,6 +127,11 @@ func (t *Transport) existsHandler(w http.ResponseWriter, r *http.Request) {
 
 	exists, err := t.storage.Exists(key)
 	if err != nil {
+		if err == errors.ErrKeyNotFound {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
 		w.WriteHeader(http.StatusInternalServerError)
 		io.WriteString(w, err.Error())
 		return
@@ -136,7 +157,11 @@ func (t *Transport) versionHandler(w http.ResponseWriter, r *http.Request) {
 
 func createHTTPMethodsHandler(method []string, handler func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !utils.SliceContains(method, r.Method, func(v1, v2 string) bool { return v1 == v2 }) {
+		if !utils.SliceContains(
+			method,
+			r.Method,
+			func(v1, v2 string) bool { return v1 == v2 },
+		) {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
