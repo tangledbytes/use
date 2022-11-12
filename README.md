@@ -134,3 +134,4 @@ ok  	github.com/utkarsh-pro/use/pkg/storage/stupid	23.241s
 
 ### 12th November 2022
 - Add a standard bloom filter implementation.
+- Add DIBF implementation.
