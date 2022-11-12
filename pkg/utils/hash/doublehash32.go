@@ -30,16 +30,6 @@ func NewDoubleHash32(fn1, fn2 gohash.Hash32, i uint32) gohash.Hash32 {
 	}
 }
 
-func DoubleHash32KGenerator(fn1, fn2 gohash.Hash32, k uint32) []gohash.Hash32 {
-	hashes := make([]gohash.Hash32, k)
-
-	for i := uint32(0); i < k; i++ {
-		hashes[i] = NewDoubleHash32(fn1, fn2, i)
-	}
-
-	return hashes
-}
-
 func (h *DoubleHash32) Write(p []byte) (n int, err error) {
 	h.fn1.Write(p)
 	h.fn2.Write(p)

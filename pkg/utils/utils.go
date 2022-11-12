@@ -84,3 +84,12 @@ func GetRandomInRange(min, max int) int {
 	rand.Seed(time.Now().UnixNano())
 	return rand.Intn(max-min) + min
 }
+
+// Max returns the maximum value of the given integers.
+func Max[T string | uint | uint32 | uint64 | int | int32 | int64 | float32 | float64](a, b T) T {
+	if a > b {
+		return a
+	}
+
+	return b
+}

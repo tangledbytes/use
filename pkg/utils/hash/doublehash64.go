@@ -30,16 +30,6 @@ func NewDoubleHash64(fn1, fn2 gohash.Hash64, i uint64) gohash.Hash64 {
 	}
 }
 
-func DoubleHash64KGenerator(fn1, fn2 gohash.Hash64, k uint64) []gohash.Hash64 {
-	hashes := make([]gohash.Hash64, k)
-
-	for i := uint64(0); i < k; i++ {
-		hashes[i] = NewDoubleHash64(fn1, fn2, i)
-	}
-
-	return hashes
-}
-
 func (h *DoubleHash64) Write(p []byte) (n int, err error) {
 	h.fn1.Write(p)
 	h.fn2.Write(p)
@@ -54,7 +44,7 @@ func (h *DoubleHash64) Reset() {
 
 func (h *DoubleHash64) Sum(b []byte) []byte {
 	// noop
-	return b
+	return nil
 }
 
 func (h *DoubleHash64) Size() int {
