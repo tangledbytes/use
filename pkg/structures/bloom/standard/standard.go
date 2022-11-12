@@ -1,7 +1,6 @@
 package standard
 
 import (
-	"fmt"
 	"math"
 
 	"github.com/utkarsh-pro/use/pkg/structures/bitset"
@@ -45,7 +44,6 @@ func EstimateParameters(n uint, e float64) (uint64, uint64) {
 // false positive rate.
 func NewWithEstimates(n uint, e float64, hashFns []types.Hash) *Filter {
 	m, k := EstimateParameters(n, e)
-	println(m, k)
 	return New(m, k, hashFns)
 }
 
@@ -97,7 +95,6 @@ func (f *Filter) ApproximateCount() int {
 	k := float64(f.k)
 
 	count := (m / k) * math.Log(1/(1-X/m))
-	fmt.Println(count)
 	return int(math.Floor(count + 0.5))
 }
 
@@ -122,7 +119,6 @@ func (f *Filter) hash(item []byte) []uint64 {
 
 	// if no hash functions were provided then use the default hash functions.
 	if f.hashFns == nil {
-		fmt.Println("hashFns is nil")
 		f.hashFns = types.DefaultHash(f.k)
 	}
 
