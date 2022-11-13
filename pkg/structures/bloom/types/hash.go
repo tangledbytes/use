@@ -3,7 +3,7 @@ package types
 import (
 	"hash/maphash"
 
-	"github.com/utkarsh-pro/use/pkg/utils/hash"
+	"github.com/utkarsh-pro/use/pkg/hash"
 )
 
 // Hash type is a hash function.
