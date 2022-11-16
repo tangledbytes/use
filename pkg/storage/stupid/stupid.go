@@ -11,6 +11,7 @@ import (
 	"github.com/utkarsh-pro/use/pkg/log"
 	"github.com/utkarsh-pro/use/pkg/storage/config"
 	"github.com/utkarsh-pro/use/pkg/storage/errors"
+	"github.com/utkarsh-pro/use/pkg/structures/bloom/dibf"
 )
 
 var (
@@ -39,6 +40,9 @@ type Storage struct {
 
 	// cfg is the storage config.
 	cfg config.Config
+
+	// bf is the bloom bf.
+	bf bf
 }
 
 // New returns a new Storage instance.
@@ -48,6 +52,7 @@ func New(dir string, cfg config.Config) *Storage {
 		wmu:   &sync.Mutex{},
 		idgen: id.New(),
 		cfg:   cfg,
+		bf:    newBfSync(dibf.NewWithEstimates(1e6, 0.01, 1, nil)),
 	}
 }
 
@@ -90,6 +95,10 @@ func (s *Storage) Init() error {
 func (s *Storage) Get(key string) ([]byte, error) {
 	if !s.isInit() {
 		return nil, errors.ErrStorageNotInitialized
+	}
+
+	if !s.bf.Contains([]byte(key)) {
+		return nil, errors.ErrKeyNotFound
 	}
 
 	var candidate *Packet = nil
@@ -179,6 +188,10 @@ func (s *Storage) Set(key string, value []byte) error {
 	}
 
 	s.lastSuccessWritePos = pos
+
+	// add to bloom filter
+	s.bf.Add([]byte(key))
+
 	return nil
 }
 
@@ -190,6 +203,10 @@ func (s *Storage) Delete(key string) error {
 
 	if s.cfg.ReadOnly {
 		return errors.ErrReadOnlyStorage
+	}
+
+	if !s.bf.Contains([]byte(key)) {
+		return nil
 	}
 
 	s.wmu.Lock()
@@ -223,6 +240,9 @@ func (s *Storage) Delete(key string) error {
 	}
 
 	s.lastSuccessWritePos = pos
+
+	// remove from bloom filter
+	s.bf.Delete([]byte(key))
 	return nil
 }
 
@@ -232,29 +252,7 @@ func (s *Storage) Exists(key string) (bool, error) {
 		return false, errors.ErrStorageNotInitialized
 	}
 
-	var candidate *Packet = nil
-
-	s.ForEach(func(r *reader, p *Packet, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if string(p.Key) == key {
-			if p.Op == DelOp {
-				candidate = nil
-				return nil
-			}
-
-			if p.Op == SetOp {
-				candidate = p
-				return nil
-			}
-		}
-
-		return nil
-	})
-
-	return candidate != nil, nil
+	return s.bf.Contains([]byte(key)), nil
 }
 
 // Len returns the number of keys in the storage.
@@ -384,7 +382,12 @@ func (s *Storage) DetectAndFix() error {
 			return err
 		}
 
+		// Update the last successful read position
 		lastSuccessRead = pr.pos()
+
+		// Insert the packet into the bloom filter
+		s.bf.Add(p.Key)
+
 		return nil
 	})
 }
