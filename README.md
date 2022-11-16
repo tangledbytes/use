@@ -135,3 +135,6 @@ ok  	github.com/utkarsh-pro/use/pkg/storage/stupid	23.241s
 ### 12th November 2022
 - Add a standard bloom filter implementation.
 - Add DIBF implementation.
+
+### 17th November 2022
+- Integrated DIBF into stupid storage engine. No filter regeneration however.
