@@ -12,6 +12,7 @@ import (
 	"github.com/utkarsh-pro/use/pkg/storage/config"
 	"github.com/utkarsh-pro/use/pkg/storage/errors"
 	"github.com/utkarsh-pro/use/pkg/structures/bloom/dibf"
+	"github.com/utkarsh-pro/use/pkg/utils"
 )
 
 var (
@@ -92,12 +93,12 @@ func (s *Storage) Init() error {
 }
 
 // Get returns the value for the given key.
-func (s *Storage) Get(key string) ([]byte, error) {
+func (s *Storage) Get(key []byte) ([]byte, error) {
 	if !s.isInit() {
 		return nil, errors.ErrStorageNotInitialized
 	}
 
-	if !s.bf.Contains([]byte(key)) {
+	if !s.bf.Contains(key) {
 		return nil, errors.ErrKeyNotFound
 	}
 
@@ -117,7 +118,7 @@ func (s *Storage) Get(key string) ([]byte, error) {
 			}
 		}
 
-		if string(p.Key) == key {
+		if utils.Equal(p.Key, key, func(a, b byte) bool { return a == b }) {
 			if p.Op == DelOp {
 				candidate = nil
 				return nil
@@ -148,7 +149,7 @@ func (s *Storage) Get(key string) ([]byte, error) {
 }
 
 // Set sets the value for the given key.
-func (s *Storage) Set(key string, value []byte) error {
+func (s *Storage) Set(key []byte, value []byte) error {
 	if !s.isInit() {
 		return errors.ErrStorageNotInitialized
 	}
@@ -165,7 +166,7 @@ func (s *Storage) Set(key string, value []byte) error {
 		&Packet{
 			ID:  s.idgen.Next(),
 			Op:  SetOp,
-			Key: []byte(key),
+			Key: key,
 			Val: value,
 		},
 	); err != nil {
@@ -190,13 +191,13 @@ func (s *Storage) Set(key string, value []byte) error {
 	s.lastSuccessWritePos = pos
 
 	// add to bloom filter
-	s.bf.Add([]byte(key))
+	s.bf.Add(key)
 
 	return nil
 }
 
 // Delete deletes the value for the given key.
-func (s *Storage) Delete(key string) error {
+func (s *Storage) Delete(key []byte) error {
 	if !s.isInit() {
 		return errors.ErrStorageNotInitialized
 	}
@@ -205,7 +206,7 @@ func (s *Storage) Delete(key string) error {
 		return errors.ErrReadOnlyStorage
 	}
 
-	if !s.bf.Contains([]byte(key)) {
+	if !s.bf.Contains(key) {
 		return nil
 	}
 
@@ -217,7 +218,7 @@ func (s *Storage) Delete(key string) error {
 		&Packet{
 			ID:  s.idgen.Next(),
 			Op:  DelOp,
-			Key: []byte(key),
+			Key: key,
 			Val: nil,
 		},
 	); err != nil {
@@ -242,17 +243,17 @@ func (s *Storage) Delete(key string) error {
 	s.lastSuccessWritePos = pos
 
 	// remove from bloom filter
-	s.bf.Delete([]byte(key))
+	s.bf.Delete(key)
 	return nil
 }
 
 // Exists returns true if the given key exists.
-func (s *Storage) Exists(key string) (bool, error) {
+func (s *Storage) Exists(key []byte) (bool, error) {
 	if !s.isInit() {
 		return false, errors.ErrStorageNotInitialized
 	}
 
-	return s.bf.Contains([]byte(key)), nil
+	return s.bf.Contains(key), nil
 }
 
 // Len returns the number of keys in the storage.

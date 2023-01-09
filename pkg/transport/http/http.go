@@ -60,7 +60,7 @@ func (t *Transport) setHandler(w http.ResponseWriter, r *http.Request) {
 	key := r.URL.Query().Get("key")
 	val := r.URL.Query().Get("val")
 
-	if err := t.storage.Set(key, []byte(val)); err != nil {
+	if err := t.storage.Set([]byte(key), []byte(val)); err != nil {
 		if err == errors.ErrReadOnlyStorage {
 			w.WriteHeader(http.StatusTeapot)
 			return
@@ -77,7 +77,7 @@ func (t *Transport) setHandler(w http.ResponseWriter, r *http.Request) {
 func (t *Transport) getHandler(w http.ResponseWriter, r *http.Request) {
 	key := r.URL.Query().Get("key")
 
-	val, err := t.storage.Get(key)
+	val, err := t.storage.Get([]byte(key))
 	if err != nil {
 		if err == errors.ErrKeyNotFound {
 			w.WriteHeader(http.StatusNotFound)
@@ -96,7 +96,7 @@ func (t *Transport) getHandler(w http.ResponseWriter, r *http.Request) {
 func (t *Transport) deleteHandler(w http.ResponseWriter, r *http.Request) {
 	key := r.URL.Query().Get("key")
 
-	if err := t.storage.Delete(key); err != nil {
+	if err := t.storage.Delete([]byte(key)); err != nil {
 		if err == errors.ErrReadOnlyStorage {
 			w.WriteHeader(http.StatusTeapot)
 			return
@@ -125,7 +125,7 @@ func (t *Transport) lenHandler(w http.ResponseWriter, r *http.Request) {
 func (t *Transport) existsHandler(w http.ResponseWriter, r *http.Request) {
 	key := r.URL.Query().Get("key")
 
-	exists, err := t.storage.Exists(key)
+	exists, err := t.storage.Exists([]byte(key))
 	if err != nil {
 		if err == errors.ErrKeyNotFound {
 			w.WriteHeader(http.StatusNotFound)

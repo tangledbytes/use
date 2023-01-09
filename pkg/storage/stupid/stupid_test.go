@@ -30,28 +30,28 @@ func TestAll(t *testing.T) {
 				}
 
 				t.Run("Get", func(t *testing.T) {
-					_, err := s.Get("foo")
+					_, err := s.Get([]byte("foo"))
 					if err != errors.ErrStorageNotInitialized {
 						t.Error("expected ErrStorageNotInitialized")
 					}
 				})
 
 				t.Run("Set", func(t *testing.T) {
-					err := s.Set("foo", nil)
+					err := s.Set([]byte("foo"), nil)
 					if err != errors.ErrStorageNotInitialized {
 						t.Error("expected ErrStorageNotInitialized")
 					}
 				})
 
 				t.Run("Delete", func(t *testing.T) {
-					err := s.Delete("foo")
+					err := s.Delete([]byte("foo"))
 					if err != errors.ErrStorageNotInitialized {
 						t.Error("expected ErrStorageNotInitialized")
 					}
 				})
 
 				t.Run("Exists", func(t *testing.T) {
-					_, err := s.Exists("foo")
+					_, err := s.Exists([]byte("foo"))
 					if err != errors.ErrStorageNotInitialized {
 						t.Error("expected ErrStorageNotInitialized")
 					}
@@ -96,7 +96,7 @@ func TestAll(t *testing.T) {
 			t.Run("Set", func(t *testing.T) {
 				t.Run("Valid Set", func(t *testing.T) {
 					for k, v := range valsforSet {
-						if err := s.Set(k, v); err != nil {
+						if err := s.Set([]byte(k), v); err != nil {
 							t.Error(err)
 						}
 					}
@@ -106,7 +106,7 @@ func TestAll(t *testing.T) {
 			t.Run("Get", func(t *testing.T) {
 				t.Run("Valid Get", func(t *testing.T) {
 					for k, v := range valsforSet {
-						val, err := s.Get(k)
+						val, err := s.Get([]byte(k))
 						if err != nil {
 							t.Error(err)
 						}
@@ -118,7 +118,7 @@ func TestAll(t *testing.T) {
 				})
 
 				t.Run("Invalid Get", func(t *testing.T) {
-					_, err := s.Get("foo3")
+					_, err := s.Get([]byte("foo3"))
 					if err != errors.ErrKeyNotFound {
 						t.Error("expected ErrKeyNotFound", "got", err)
 					}
@@ -129,11 +129,11 @@ func TestAll(t *testing.T) {
 				t.Run("Valid Delete", func(t *testing.T) {
 					// Delete the first key that we encounter
 					for k := range valsforSet {
-						if err := s.Delete(k); err != nil {
+						if err := s.Delete([]byte(k)); err != nil {
 							t.Error(err)
 						}
 
-						_, err := s.Get(k)
+						_, err := s.Get([]byte(k))
 						if err != errors.ErrKeyNotFound {
 							t.Error("expected ErrKeyNotFound")
 						}
@@ -147,7 +147,7 @@ func TestAll(t *testing.T) {
 			t.Run("Exists", func(t *testing.T) {
 				t.Run("Valid Exists", func(t *testing.T) {
 					for k := range valsforSet {
-						exists, err := s.Exists(k)
+						exists, err := s.Exists([]byte(k))
 						if err != nil {
 							t.Error(err)
 						}
@@ -157,7 +157,7 @@ func TestAll(t *testing.T) {
 						}
 					}
 
-					if ok, err := s.Exists(string(utils.GenerateRandomBytes(5))); err != nil {
+					if ok, err := s.Exists(utils.GenerateRandomBytes(5)); err != nil {
 						t.Error(err)
 					} else if ok {
 						t.Error("expected false")
@@ -173,7 +173,7 @@ func TestAll(t *testing.T) {
 						t.Error("expected", setLength, "got", n)
 					}
 
-					if err := s.Set("foo3", []byte("bazz")); err != nil {
+					if err := s.Set([]byte("foo3"), []byte("bazz")); err != nil {
 						t.Error(err)
 					}
 
@@ -197,21 +197,21 @@ func TestAll(t *testing.T) {
 				})
 
 				t.Run("Get", func(t *testing.T) {
-					_, err := s.Get("foo")
+					_, err := s.Get([]byte("foo"))
 					if err != errors.ErrStorageNotInitialized {
 						t.Error("expected ErrStorageNotInitialized")
 					}
 				})
 
 				t.Run("Set", func(t *testing.T) {
-					err := s.Set("foo", nil)
+					err := s.Set([]byte("foo"), nil)
 					if err != errors.ErrStorageNotInitialized {
 						t.Error("expected ErrStorageNotInitialized")
 					}
 				})
 
 				t.Run("Delete", func(t *testing.T) {
-					err := s.Delete("foo")
+					err := s.Delete([]byte("foo"))
 					if err != errors.ErrStorageNotInitialized {
 						t.Error("expected ErrStorageNotInitialized")
 					}
@@ -219,7 +219,7 @@ func TestAll(t *testing.T) {
 				})
 
 				t.Run("Exists", func(t *testing.T) {
-					_, err := s.Exists("foo")
+					_, err := s.Exists([]byte("foo"))
 					if err != errors.ErrStorageNotInitialized {
 						t.Error("expected ErrStorageNotInitialized")
 					}
@@ -259,7 +259,7 @@ func TestStorage_DetectAndFix(t *testing.T) {
 		// 3rd TLV size => 1 + 4 + 5 = 10
 		// 4th TLV size => 1 + 4 + 5 = 10
 		// Total size => 13 + 6 + 10 + 10 = 39
-		if err := s.Set(string(utils.GenerateRandomBytes(5)), utils.GenerateRandomBytes(5)); err != nil {
+		if err := s.Set(utils.GenerateRandomBytes(5), utils.GenerateRandomBytes(5)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -364,7 +364,7 @@ func BenchmarkStupidSetNoSync(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				if err := s.Set(key, value); err != nil {
+				if err := s.Set([]byte(key), value); err != nil {
 					b.Error(err)
 				}
 			}
@@ -410,7 +410,7 @@ func BenchmarkStupidSetSync(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				if err := s.Set(key, value); err != nil {
+				if err := s.Set([]byte(key), value); err != nil {
 					b.Error(err)
 				}
 			}
@@ -456,7 +456,7 @@ func BenchmarkStupidSetAsyncSync(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				if err := s.Set(key, value); err != nil {
+				if err := s.Set([]byte(key), value); err != nil {
 					b.Error(err)
 				}
 			}
@@ -499,14 +499,14 @@ func BenchmarkStupidGet(b *testing.B) {
 			key := "foo"
 			value := []byte(strings.Repeat(" ", test.size))
 
-			if err := s.Set(key, value); err != nil {
+			if err := s.Set([]byte(key), value); err != nil {
 				b.Error(err)
 			}
 
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				if val, err := s.Get(key); err != nil {
+				if val, err := s.Get([]byte(key)); err != nil {
 					b.Error(err)
 				} else if !bytes.Equal(val, value) {
 					b.Error("expected", value, "got", val)

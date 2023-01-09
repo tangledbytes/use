@@ -13,16 +13,16 @@ type Storage interface {
 	Init() error
 
 	// Get returns the value for the given key.
-	Get(key string) ([]byte, error)
+	Get(key []byte) ([]byte, error)
 
 	// Set sets the value for the given key.
-	Set(key string, value []byte) error
+	Set(key []byte, value []byte) error
 
 	// Delete deletes the value for the given key.
-	Delete(key string) error
+	Delete(key []byte) error
 
 	// Exists returns true if the given key exists.
-	Exists(key string) (bool, error)
+	Exists(key []byte) (bool, error)
 
 	// Len returns the number of keys in the storage.
 	Len() (int, error)
