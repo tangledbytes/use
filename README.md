@@ -9,6 +9,7 @@ What does USE stand for? It's a recursive name U -> USE, S -> Storage, E -> Engi
   - [ ] Should support primary and secondary indexing.
 	- [ ] primary key indexing would be clustered in nature. No Heap File.
 	- [ ] seconday key indexing will not be clustered in nature. They should rather point to the primary key in the primary key index.
+  - [ ] WAL for recovery. No support for opting out of it however.
 - [ ] A simple transport layer which can perform operations like:
   - [ ] `GET <key>`.
   - [ ] `SET <key> <value>`.
